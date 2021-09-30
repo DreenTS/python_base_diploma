@@ -13,6 +13,7 @@ class WrongDistanceOperandError(BaseException):
 class CollectorXXI(Drone):
 
     def __init__(self):
+        # TODO - Неплохо бы проинспектировать используемый метод в супер-классе. там кварги в параметрах
         super().__init__()
         self.my_team = []
 
@@ -22,6 +23,13 @@ class CollectorXXI(Drone):
         self.my_team.append(self)
 
     def _get_my_asteroid(self, distance):
+        # TODO - Нейминг! distance - дистанция. Как другой прораммист должен догадаться,
+        #  что этот параметр - строковые литералы принимает? Это скорее MODE какой-нибудь.
+        #  А возможные варианты вынесите в константы.
+
+        # TODO - Алгоритм получился запутанным.
+        #  Сделайте две ветки алгоритма. Общую часть кода вынесите после обоих веток
+        #  Код должен читаться как книга, а не как ребус
         if distance == 'far':
             target_asteroid = [0, self.my_mothership]
             operand = '>'
@@ -32,6 +40,7 @@ class CollectorXXI(Drone):
             raise WrongDistanceOperandError(op=distance)
         for asteroid in self.asteroids:
             if not asteroid.is_empty:
+                # TODO - Старайтесь не использовать eval
                 if eval(f'self.distance_to(asteroid) {operand} target_asteroid[0]'):
                     target_asteroid = [self.distance_to(asteroid), asteroid]
         return target_asteroid[1]
