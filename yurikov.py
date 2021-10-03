@@ -16,13 +16,20 @@ class YurikovDrone(Drone):
 
     ROLE = 'manager'
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if 'manager' in [mate.ROLE for mate in self.teammates]:
+            self.ROLE = 'worker'
+            self.manager = [mate for mate in self.teammates if mate.ROLE == 'manager'][0]
+        else:
+            self.manager = self
+            self.drone_logger = None
+
     def move_at(self, *args, **kwargs):
         self._update_stats(*args)
         super().move_at(*args, **kwargs)
 
     def on_born(self):
-        if 'manager' in [mate.ROLE for mate in self.teammates]:
-            self.ROLE = 'worker'
         self.target = self._get_my_asteroid(mode_func=FAR)
         self.move_at(self.target)
 
@@ -36,9 +43,6 @@ class YurikovDrone(Drone):
 
         if curr_asteroid_distance_list:
             res_target = mode_func(curr_asteroid_distance_list)
-        elif self.ROLE == 'manager':
-            self.drone_logger = configure_logger()
-            self._log_stats()
 
         return res_target[1]
 
@@ -56,9 +60,12 @@ class YurikovDrone(Drone):
         self.unload_to(mothership)
 
     def on_unload_complete(self):
-        if self.target.is_empty:
-            self.target = self._get_my_asteroid(mode_func=FAR)
-        self.move_at(self.target)
+        if self._check_for_end():
+            self.manager._log_stats()
+        else:
+            if self.target.is_empty:
+                self.target = self._get_my_asteroid(mode_func=FAR)
+            self.move_at(self.target)
 
     def _update_stats(self, target):
         if self.is_empty:
@@ -68,11 +75,16 @@ class YurikovDrone(Drone):
         else:
             self.STATS['not_fully_range'] += self.distance_to(target)
 
+    def _check_for_end(self):
+        is_empty_for_end = [obj.is_empty for obj in self.teammates + self.asteroids]
+        is_empty_for_end.append(self.is_empty)
+        return all(is_empty_for_end)
+
     def _log_stats(self):
         for mate in self.teammates:
             for k, v in mate.STATS.items():
                 self.STATS[k] += v
-        self._update_stats(target=self.my_mothership)
+        self.drone_logger = configure_logger()
         res = 'Run stats:\n'
         for k, v in self.STATS.items():
             res += f'{k} = {v}\n'

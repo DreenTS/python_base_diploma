@@ -33,5 +33,6 @@ def configure_logger():
 
 
 if __name__ == '__main__':
-    drones_logger = logging.getLogger('drone_logger')
+    drone_logger = configure_logger()
+    drone_logger.info(msg='TEST TEST TEST')
     print('Done!!!')
