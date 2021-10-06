@@ -13,3 +13,4 @@ if __name__ == '__main__':
     drones = [YurikovDrone() for _ in range(settings.DRONES_AMOUNT)]
     scene.go()
 
+# Второй этап: зачёт!
