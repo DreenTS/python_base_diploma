@@ -47,34 +47,48 @@ class YurikovDrone(Drone):
         super().move_at(*args, **kwargs)
 
     def on_born(self):
-        if self.ROLE == 'manager':
-            self._add_worker_field()
-        self.target = self._get_my_asteroid(mode_func=FAR)
+        self.asteroids_with_distance = [(astr, self.my_mothership.distance_to(astr)) for astr in self.asteroids]
+        self.asteroids_with_distance.sort(key=lambda k: k[1], reverse=True)
+        self.target = self.asteroids_with_distance[0][0]
         self.move_at(self.target)
 
-    def _get_my_asteroid(self, mode_func):
-        res_target = (0, self.my_mothership)
-        curr_asteroid_distance_list = []
+    def _get_point_to_act(self, action):
+        res_target = self.my_mothership
 
-        for astr in self.asteroids:
-            if not astr.is_empty and astr.worker is None:
-                curr_asteroid_distance_list.append((self.distance_to(astr), astr))
+        if action == UNLOAD:
+            loc_distance = self.my_mothership.distance_to(self.target)
+            index = self.asteroids_with_distance.index((self.target, loc_distance)) + 1
+        else:
+            index = 0
 
-        if curr_asteroid_distance_list:
-            res_target = mode_func(curr_asteroid_distance_list)
-            res_target[1].worker = self
+        for astrd_with_dist in self.asteroids_with_distance[index:]:
+            astrd = astrd_with_dist[0]
+            if action == LOAD:
+                if not astrd.is_empty:
+                    res_target = astrd
+                    break
+            if action == UNLOAD:
+                if not astrd.is_full:
+                    res_target = astrd
+                    break
 
-        return res_target[1]
+        return res_target
 
     def on_stop_at_asteroid(self, asteroid):
-        self.load_from(asteroid)
+        if self.action == LOAD:
+            self.load_from(asteroid)
+        else:
+            self.unload_to(asteroid)
 
     def on_load_complete(self):
-        if not self.is_full:
-            self.target = self._get_my_asteroid(mode_func=NEAR)
+        if self.is_full:
+            self.action = UNLOAD
+            self.target = self._get_point_to_act(action=self.action)
             self.move_at(self.target)
         else:
-            self.move_at(self.my_mothership)
+            self.action = LOAD
+            self.target = self._get_point_to_act(action=self.action)
+            self.move_at(self.target)
 
     def on_stop_at_mothership(self, mothership):
         self.unload_to(mothership)
@@ -84,13 +98,13 @@ class YurikovDrone(Drone):
             if self.manager.need_log:
                 self.manager._log_stats()
         else:
-            if self.target.is_empty:
-                self.target = self._get_my_asteroid(mode_func=FAR)
+            if self.is_empty:
+                self.action = LOAD
+                self.target = self._get_point_to_act(action=self.action)
+            else:
+                self.action = UNLOAD
+                self.target = self._get_point_to_act(action=self.action)
             self.move_at(self.target)
-
-    def _add_worker_field(self):
-        for astr in self.asteroids:
-            astr.worker = None
 
     def _update_stats(self, target):
         if self.is_empty:
