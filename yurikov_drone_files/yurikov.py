@@ -1,8 +1,8 @@
 from astrobox.core import Drone
 from robogame_engine.geometry import Point
 
-import states
-from log_config import configure_logger
+import yurikov_drone_files.states as states
+from yurikov_drone_files.log_config import configure_logger
 
 
 class SpaceLogger:
@@ -51,13 +51,42 @@ class YurikovDrone(Drone):
             self.is_manager = False
             self.need_log = False
 
+    def game_step(self):
+        """
+        Выполняется при каждом шаге игры (дополнение для родительского метода).
+
+        Проверяет, закончилась ли "миссия" дронов (можно ли логгировать).
+        Обновляет значение признаков оптимальности перемещения дрона.
+
+        Вызывает метод состояния дрона on_game_step()
+        (подробнее см. docstrings методов состояний в states.py).
+
+        :return: None
+        """
+
+        if self._check_for_end():
+            if self.manager.need_log:
+                self.manager.log_stats()
+
+        self._update_stats(point=self.prev_point)
+
+        self.prev_point = Point(self.coord.x, self.coord.y)
+
+        self.state_handle.on_game_step()
+
+        super().game_step()
+
     def on_born(self):
         """
-        Вызывается при "рождении" дрона.
-        Формирует список кортежей (<объект_астероида>, <расстояние_до_астероида>)
-        и сортирует его по убыванию.
-        Получение астероида в качестве цели для загрузки-выгрузки
-        будет происходить через обращение к данному списку.
+        Вызывается единожды при "рождении" дрона.
+
+        Если дрон является "менеджером",
+        то добавляет всем астероидам на сцене атрибут start_worker.
+        В начале игры распределение следующее: на 1 дрона - 1 астероид.
+
+        Указывает задачу для перемещения - на загрузку.
+        Присваивает текущее состояние - движение.
+        Получает цель для движения из обработки внутри состояния и движется к цели.
 
         :return: None
         """
@@ -72,35 +101,45 @@ class YurikovDrone(Drone):
         self.target = self.state_handle.handle()
         self.move_at(self.target)
 
-    def game_step(self):
-        if self._check_for_end():
-            if self.manager.need_log:
-                self.manager.log_stats()
-
-        self._update_stats(point=self.prev_point)
-
-        self.prev_point = Point(self.coord.x, self.coord.y)
-
-        self.state_handle.on_game_step()
-
-        super().game_step()
-
     def on_stop_at_asteroid(self, asteroid):
+        """
+        При остановке у астероида.
+
+        Присваивает следующее состояние - из атрибута next_state текущего состояния.
+        Разрешает поворот к следующей цели во время загрузки ресурса.
+        Начинает загрузку ресурса в трюм.
+
+        :param asteroid: Asteroid object, объект астероида, у которого остановился дрон
+        :return: None
+        """
+
         self.state_handle = self.state_handle.next_state
         self.need_turn = True
         self.load_from(asteroid)
 
     def on_stop_at_mothership(self, mothership):
+        """
+        При остановке у базы.
+
+        Присваивает следующее состояние - из атрибута next_state текущего состояния.
+        Разрешает поворот к следующей цели во время загрузки ресурса.
+        Начинает разгрузку ресурса на базу.
+
+        :param mothership: MotherShip object, объект базы
+        :return: None
+        """
+
         self.state_handle = self.state_handle.next_state
         self.need_turn = True
         self.unload_to(mothership)
 
     def _update_stats(self, point):
         """
-        Вспомогательный метод. Вызывается перед каждом перемещении к цели (метод move_to()).
-        Дополняет словарь менеджера по ключам, в зависимости от заполненности трюма.
+        Вспомогательный метод. Вызывается при каждом шаге игры.
+        Дополняет словарь менеджера по ключам, в зависимости от заполненности трюма,
+        если дрон перемещался по сцене.
 
-        :param target: MotherShip or Asteroid object, объект, до которого полетит дрон
+        :param point: Point object, предыдущая точка на сцене, где находился дрон
         :return: None
         """
 
@@ -137,4 +176,3 @@ class YurikovDrone(Drone):
         self.need_log = False
         logger = SpaceLogger(data=self.stats)
         logger.log()
-

@@ -2,7 +2,7 @@
 
 from astrobox.space_field import SpaceField
 
-from yurikov_drones.yurikov import YurikovDrone
+from yurikov_drone_files.yurikov import YurikovDrone
 import settings
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ LOG_CONFIG = {
         'file_handler': {
             'class': 'logging.FileHandler',
             'formatter': 'drones_logger_formatter',
-            'filename': 'yurikov_drones/game.log',
+            'filename': 'game.log',
             'mode': 'a',
             'encoding': 'utf-8',
         },
