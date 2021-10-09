@@ -3,7 +3,7 @@
 from astrobox.space_field import SpaceField
 
 from yurikov_drone_files.yurikov import YurikovDrone
-import settings
+from yurikov_drone_files import settings
 
 if __name__ == '__main__':
     scene = SpaceField(

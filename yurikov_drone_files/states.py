@@ -31,6 +31,7 @@ class DroneState(ABC):
         :return: None
         """
 
+        # TODO - Префикс "_" в имени поля внешнего класса говорит о том, что не нужно его юзать в своих целях
         if self.drone._transition is None:
             if self.drone.state_handle.__class__ in [LOAD, UNLOAD]:
                 self.drone.state_handle.handle()
@@ -55,6 +56,7 @@ class MoveState(DroneState):
     """
 
     def handle(self):
+        # TODO - Нейминг! М.б. как обозначить действие в имени? Например, action?
         """
         Метод обработки внутри состояния.
 
@@ -212,9 +214,14 @@ class UnloadState(DroneState):
         self.drone.task_for_move = LOAD_TASK
 
 
+# TODO - Константы принято размещать сразу после импортов
 MOVE = MoveState
 LOAD_TASK = 'load_task'
 UNLOAD_TASK = 'unload_task'
 
 LOAD = LoadState
 UNLOAD = UnloadState
+
+# TODO - Ни разу не сталкиался с тем, чтобы константой указывать на класс. Это запутывает код, т.е. программисту
+#  требуется остледить все эти указатели и держать в голове настоящее название класса.
+#  Не думаю, что это хорошая практика. Классами надо пользоваться как классами, это логично. Не логично иное.

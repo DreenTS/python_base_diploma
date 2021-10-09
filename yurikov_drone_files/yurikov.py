@@ -51,6 +51,7 @@ class YurikovDrone(Drone):
             self.is_manager = False
             self.need_log = False
 
+    # TODO - Замените на on_heartbeat, т.к. метод game_step используется движком и не предназначен для переопределения
     def game_step(self):
         """
         Выполняется при каждом шаге игры (дополнение для родительского метода).
