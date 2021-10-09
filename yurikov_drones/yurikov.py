@@ -1,9 +1,8 @@
 from astrobox.core import Drone
+from robogame_engine.geometry import Point
 
+import states
 from log_config import configure_logger
-
-LOAD = 'load'
-UNLOAD = 'unload'
 
 
 class SpaceLogger:
@@ -33,27 +32,24 @@ class YurikovDrone(Drone):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.action = LOAD
-        self.asteroids_with_distance = None
-        self.role = 'manager'
+        self.state_handle = None
+        self.task_for_move = None
+        self.curr_asteroid = None
+        self.need_turn = True
+        self.prev_point = None
+        self.manager = self
+        self.is_manager = True
+        self.need_log = True
         self.stats = {
-            'empty_range': 0,
-            'fully_range': 0,
-            'not_fully_range': 0,
+            'empty_range': 0.0,
+            'fully_range': 0.0,
+            'not_fully_range': 0.0,
         }
-        temp_managers_list = [mate for mate in self.teammates if mate.role == 'manager']
+        temp_managers_list = [mate for mate in self.teammates if mate.is_manager]
         if temp_managers_list:
-            self.role = 'worker'
             self.manager = temp_managers_list[0]
+            self.is_manager = False
             self.need_log = False
-        else:
-
-            self.manager = self
-            self.need_log = True
-
-    def move_at(self, *args, **kwargs):
-        self._update_stats(*args)
-        super().move_at(*args, **kwargs)
 
     def on_born(self):
         """
@@ -66,9 +62,14 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        self.asteroids_with_distance = [(astr, self.my_mothership.distance_to(astr)) for astr in self.asteroids]
-        self.asteroids_with_distance.sort(key=lambda k: k[1], reverse=True)
-        self.target = self.asteroids_with_distance[0][0]
+        self.prev_point = Point(self.coord.x, self.coord.y)
+
+        if self.is_manager:
+            for asteroid in self.asteroids:
+                asteroid.start_worker = None
+        self.task_for_move = states.LOAD_TASK
+        self.state_handle = states.MOVE(self)
+        self.target = self.state_handle.handle()
         self.move_at(self.target)
 
     def _get_target_to_act(self, action):
@@ -161,7 +162,7 @@ class YurikovDrone(Drone):
 
         if self._check_for_end():
             if self.manager.need_log:
-                self.manager._log_stats()
+                self.manager.log_stats()
         else:
             if self.is_empty:
                 self.action = LOAD
@@ -171,7 +172,7 @@ class YurikovDrone(Drone):
                 self.target = self._get_target_to_act(action=self.action)
             self.move_at(self.target)
 
-    def _update_stats(self, target):
+    def _update_stats(self, point):
         """
         Вспомогательный метод. Вызывается перед каждом перемещении к цели (метод move_to()).
         Дополняет словарь менеджера по ключам, в зависимости от заполненности трюма.
@@ -181,11 +182,11 @@ class YurikovDrone(Drone):
         """
 
         if self.is_empty:
-            self.manager.stats['empty_range'] += self.distance_to(target)
+            self.manager.stats['empty_range'] += self.distance_to(point)
         elif self.is_full:
-            self.manager.stats['fully_range'] += self.distance_to(target)
+            self.manager.stats['fully_range'] += self.distance_to(point)
         else:
-            self.manager.stats['not_fully_range'] += self.distance_to(target)
+            self.manager.stats['not_fully_range'] += self.distance_to(point)
 
     def _check_for_end(self):
         """
@@ -202,7 +203,7 @@ class YurikovDrone(Drone):
         is_empty_for_end.append(self.is_empty)
         return all(is_empty_for_end)
 
-    def _log_stats(self):
+    def log_stats(self):
         """
         Инициализация логгера.
         Метод вызывается лишь раз в конце "миссии" дронов.
