@@ -62,15 +62,14 @@ class YurikovDrone(Drone):
             self.is_manager = False
             self.need_log = False
 
-    # TODO - Замените на on_heartbeat, т.к. метод game_step используется движком и не предназначен для переопределения
-    def game_step(self):
+    def on_heartbeat(self):
         """
-        Выполняется при каждом шаге игры (дополнение для родительского метода).
+        Выполняется при каждом шаге игры.
 
         Проверяет, закончилась ли "миссия" дронов (можно ли логгировать).
         Обновляет значение признаков оптимальности перемещения дрона.
 
-        Вызывает метод состояния дрона on_game_step()
+        Вызывает метод состояния дрона on_heartbeat()
         (подробнее см. docstrings методов состояний в states.py).
 
         :return: None
@@ -84,9 +83,7 @@ class YurikovDrone(Drone):
 
         self.prev_point = Point(self.coord.x, self.coord.y)
 
-        self.state_handle.on_game_step()
-
-        super().game_step()
+        self.curr_state.on_heartbeat()
 
     def on_born(self):
         """
