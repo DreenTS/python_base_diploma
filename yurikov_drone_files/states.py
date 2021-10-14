@@ -143,97 +143,7 @@ class MoveState(DroneState):
 
     """
 
-    def handle(self):
-        # TODO - Нейминг! М.б. как обозначить действие в имени? Например, action?
-        """
-        Метод обработки внутри состояния.
-
-        Ищет и возвращает цель для перемещения.
-
-        Если задача для перемещения "на выгрузку":
-            ! присваивает атрибуту  next_state следующее состояние - "выгрузка";
-            ! возвращает объект базы.
-
-        Если задача для перемещения "на загрузку":
-            ! присваивает атрибуту  next_state следующее состояние - "загрузка";
-            ! формирует локальный список с непустыми астероидами;
-
-            ! если текущее состояние == "перемещение", а текущий астероид дрона до сих пор не пустой:
-                возвращает текущий астероид из атрибута curr_asteroid;
-
-            ! иначе:
-                формирует список кортежей (asteroid, rel),
-
-                где asteroid - Asteroid object,
-                    rel - отношение = ВОЗМОЖНОЕ_КОЛВО_РЕСУРСА / (1 + РАССТОЯНИЕ_ДО_АСТЕРОИДА);
-
-                сортирует список кортежей по значению отношения;
-                если обработка происходит в самом начале игры (curr_state is None),
-                    вызывается метод _get_start_asteroid() (подробнее см. docstrings метода);
-
-                иначе возвращается самый выгодный для загрузки ресурса астероид
-                    (чем больше на астероиде ресурса и меньше расстояние до него - тем лучше).
-
-            ! если же все астероиды пустые (локальный список непустых астероидов пуст),
-                устанавливает задачу для перемещения - "на выгрузку";
-                присваивает атрибуту  next_state следующее состояние - "выгрузка";
-                возвращает объект базы.
-
-        :return: Asteroid or MotherShip object, цель для перемещения - астероид или база
-        """
-
-        if self.drone.task_for_move == UNLOAD_TASK:
-            self.next_state = UNLOAD(self.drone)
-            return self.drone.my_mothership
-
-        elif self.drone.task_for_move == LOAD_TASK:
-            self.next_state = LOAD(self.drone)
-
-            asteroids = [astrd for astrd in self.drone.asteroids if not astrd.is_empty]
-            if self.drone.state_handle.__class__ == MOVE:
-                if self.drone.curr_asteroid in asteroids:
-                    return self.drone.curr_asteroid
-
-            relations = []
-            for asteroid in asteroids:
-                if self.drone.free_space >= asteroid.payload:
-                    payload_to_load = asteroid.payload
-                else:
-                    payload_to_load = self.drone.free_space
-                rel = payload_to_load / (1.0 + self.drone.distance_to(asteroid))
-                relations.append((asteroid, rel))
-            relations.sort(key=lambda k: k[1], reverse=True)
-
-            if self.drone.curr_asteroid is None:
-                return self._get_start_asteroid(relations=relations)
-
-            for astrd_with_rel in relations:
-                asteroid, rel = astrd_with_rel
-                if self.drone.state_handle.__class__ == MOVE:
-                    self.drone.curr_asteroid = asteroid
-                return asteroid
-            else:
-                self.drone.task_for_move = UNLOAD_TASK
-                self.next_state = UNLOAD(self.drone)
-                return self.drone.my_mothership
-
-    def _get_start_asteroid(self, relations):
-        """
-        Получить начальный астероид.
-        В начале игры распределение следующее: на 1 дрона - 1 астероид.
-
-        :param relations: list, список отношений
-        :return: Asteroid object, выбранный астероид
-        """
-
-        for astrd_with_rel in relations:
-            asteroid, rel = astrd_with_rel
-            if asteroid.start_worker is None:
-                asteroid.start_worker = self.drone
-                self.drone.curr_asteroid = asteroid
-                return asteroid
-
-    def on_game_step(self):
+    def on_heartbeat(self):
         """
         Выполняется при каждом шаге игры.
 
@@ -244,19 +154,49 @@ class MoveState(DroneState):
         :return: None
         """
 
-        super().on_game_step()
-        self.drone.target = self.handle()
-        self.drone.move_at(self.drone.target)
+        if self.is_active:
+            if self.drone.is_transition_finished:
+                self.drone.is_transition_finished = False
+                self.drone.target.worker = None
+                if not self.drone.is_full:
+                    self.drone.task = LOAD_TASK
+                else:
+                    self.drone.task = UNLOAD_TASK
+                self.drone.target = self.handle_action()
+                self.drone.move_at(self.drone.target)
+
+            if self.drone.target and self.drone.target.is_empty:
+                self.drone.target = self.handle_action()
+                self.drone.move_at(self.drone.target)
 
 
-class LoadState(DroneState):
+class TransitionState(DroneState):
     """
     Класс состояния "загрузки".
 
     """
 
-    def handle(self):
+    def on_heartbeat(self):
         """
+        Выполняется при каждом шаге игры.
+
+        Получает цель для перемещения из обработки внутри состояния и движется к цели
+        (на случай, если цель во время перемещения к ней осталась без ресурса
+        или если все астероиды пустые).
+
+        OR
+
+         Если дрон находится в процессе загрузки/выгрузки ресурса:
+            ! получает следующую предполагаемую цель для перемещения
+                и поворачивается в её сторону.
+
+        По окончании процесса загрузки/выгрузки ресурса:
+            ! вызывает метод обработки текущего состояния (загрузки или выгрузки);
+            ! присваивает следующее состояние - из атрибута next_state текущего состояния;
+            ! получает цель для перемещения из обработки внутри состояния и движется к цели.
+
+        OR
+
         Метод обработки внутри состояния.
         Выполняется по окончании загрузки ресурса с астероида в трюм.
 
@@ -270,34 +210,18 @@ class LoadState(DroneState):
         :return: None
         """
 
-        self.drone.need_turn = False
-        self.next_state = MOVE(self.drone)
-        if not self.drone.is_full:
-            self.drone.task_for_move = LOAD_TASK
-        else:
-            self.drone.task_for_move = UNLOAD_TASK
+        if self.is_active:
+            if self.drone.is_transition_started:
+                if isinstance(self.drone.target, Asteroid) and self.drone.payload + self.drone.target.payload >= 100:
+                    self.drone.task = UNLOAD_TASK
+                else:
+                    self.drone.task = LOAD_TASK
+                self.drone.target_to_turn = self.handle_action()
+                self.drone.turn_to(self.drone.target_to_turn)
 
-
-class UnloadState(DroneState):
-    """
-    Класс состояния "выгрузки".
-
-    """
-
-    def handle(self):
-        """
-        Метод обработки внутри состояния.
-        Выполняется по окончании выгрузки ресурса на базу.
-
-        Запрещает поворот к следующей цели во время загрузки ресурса
-        Присваивает атрибуту  next_state следующее состояние - "перемещение".
-
-        Устанавливает задачу для перемещения - "на загрузку".
-
-        :return: None
-        """
-
-        self.drone.need_turn = False
-        self.next_state = MOVE(self.drone)
-        self.drone.task_for_move = LOAD_TASK
-
+            if self.drone.is_transition_finished:
+                self.drone.target.worker = None
+                if not self.drone.is_full:
+                    self.drone.task = LOAD_TASK
+                else:
+                    self.drone.task = UNLOAD_TASK
