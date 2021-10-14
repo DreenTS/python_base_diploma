@@ -15,13 +15,111 @@ class DroneState(ABC):
 
     def __init__(self, drone):
         self.drone = drone
-        self.next_state = None
+        self.is_active = False
+
+    def _get_rel_list(self, asteroids_list):
+        in_valid_range = []
+        in_under_range = []
+        in_over_range = []
+
+        for asteroid in asteroids_list:
+            half_x = asteroid.coord.x / theme.FIELD_WIDTH
+            if .35 <= half_x <= .65:
+                list_append = in_valid_range.append
+            elif half_x < .35:
+                list_append = in_under_range.append
+            else:
+                list_append = in_over_range.append
+
+            dist = self.drone.distance_to(asteroid) + self.drone.my_mothership.distance_to(asteroid)
+
+            drone_free_space = self.drone.free_space
+            if self.__class__ == TransitionState and isinstance(self.drone.target, Asteroid):
+                drone_free_space -= self.drone.target.payload
+
+            if asteroid.payload >= drone_free_space:
+                payload = drone_free_space
+            else:
+                payload = asteroid.payload
+            if self.drone.enemy_base is not None:
+                payload *= asteroid.distance_to(self.drone.enemy_base)
+            rel = payload / dist
+            list_append((asteroid, rel))
+
+        if self.drone.is_first_step:
+            self.drone.is_first_step = False
+            in_valid_range.sort(key=lambda k: k[1], reverse=True)
+            in_under_range.sort(key=lambda k: k[1], reverse=True)
+        else:
+            in_valid_range += in_under_range
+            in_valid_range.sort(key=lambda k: k[1], reverse=True)
+            in_under_range.clear()
+        in_over_range.sort(key=lambda k: k[1], reverse=True)
+        res_list = in_valid_range + in_under_range + in_over_range
+
+        return res_list
+
+    def handle_action(self):
+        """
+                Метод обработки внутри состояния.
+
+                Ищет и возвращает цель для перемещения.
+
+                Если задача для перемещения "на выгрузку":
+                    ! присваивает атрибуту  next_state следующее состояние - "выгрузка";
+                    ! возвращает объект базы.
+
+                Если задача для перемещения "на загрузку":
+                    ! присваивает атрибуту  next_state следующее состояние - "загрузка";
+                    ! формирует локальный список с непустыми астероидами;
+
+                    ! если текущее состояние == "перемещение", а текущий астероид дрона до сих пор не пустой:
+                        возвращает текущий астероид из атрибута curr_asteroid;
+
+                    ! иначе:
+                        формирует список кортежей (asteroid, rel),
+
+                        где asteroid - Asteroid object,
+                            rel - отношение = ВОЗМОЖНОЕ_КОЛВО_РЕСУРСА / (1 + РАССТОЯНИЕ_ДО_АСТЕРОИДА);
+
+                        сортирует список кортежей по значению отношения;
+                        если обработка происходит в самом начале игры (curr_state is None),
+                            вызывается метод _get_start_asteroid() (подробнее см. docstrings метода);
+
+                        иначе возвращается самый выгодный для загрузки ресурса астероид
+                            (чем больше на астероиде ресурса и меньше расстояние до него - тем лучше).
+
+                    ! если же все астероиды пустые (локальный список непустых астероидов пуст),
+                        устанавливает задачу для перемещения - "на выгрузку";
+                        присваивает атрибуту  next_state следующее состояние - "выгрузка";
+                        возвращает объект базы.
+
+                :return: Asteroid or MotherShip object, цель для перемещения - астероид или база
+                """
+
+        if self.drone.task == UNLOAD_TASK:
+            return self.drone.my_mothership
+        elif self.drone.task == LOAD_TASK:
+            if self.__class__ == MoveState:
+                non_empty_asteroids = [astrd for astrd in self.drone.asteroids if not astrd.is_empty]
+            else:
+                non_empty_asteroids = [astrd for astrd in self.drone.asteroids
+                                       if not astrd.is_empty and astrd != self.drone.target]
+
+            relations = self._get_rel_list(asteroids_list=non_empty_asteroids)
+
+            for astrd_with_rel in relations:
+                asteroid, rel = astrd_with_rel
+                if asteroid.worker is None:
+                    if not self.drone.is_transition_started:
+                        asteroid.worker = self.drone
+                    return asteroid
+            else:
+                self.drone.task = UNLOAD_TASK
+                return self.drone.my_mothership
 
     @abstractmethod
-    def handle(self):
-        pass
-
-    def on_game_step(self):
+    def on_heartbeat(self):
         """
         Выполняется при каждом шаге игры.
 
@@ -36,23 +134,7 @@ class DroneState(ABC):
 
         :return: None
         """
-
-        # TODO - Префикс "_" в имени поля внешнего класса говорит о том, что не нужно его юзать в своих целях
-        if self.drone._transition is None:
-            if self.drone.state_handle.__class__ in [LOAD, UNLOAD]:
-                self.drone.state_handle.handle()
-                self.drone.state_handle = self.drone.state_handle.next_state
-                self.drone.target = self.drone.state_handle.handle()
-                self.drone.move_at(self.drone.target)
-        else:
-            if self.drone.need_turn:
-                if self.drone.free_space > self.drone.target.payload:
-                    self.drone.task_for_move = LOAD_TASK
-                else:
-                    self.drone.task_for_move = UNLOAD_TASK
-                loc_state = MOVE(self.drone)
-                turn_target = loc_state.handle()
-                self.drone.turn_to(turn_target)
+        pass
 
 
 class MoveState(DroneState):
