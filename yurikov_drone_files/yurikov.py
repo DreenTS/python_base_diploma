@@ -17,8 +17,15 @@ class SpaceLogger:
 
     def log(self):
         res = 'Run stats:\n'
+        first_team, second_team = self.data['teams'].items()
+        res += f'{first_team[0]}: {first_team[1]}\n{second_team[0]}: {second_team[1]}\n'
+        if first_team[1] > second_team[1]:
+            res += f'\nWINNER: {first_team[0]}\n\n'
+        else:
+            res += f'\nWINNER: {second_team[0]}\n\n'
         for k, v in self.data.items():
-            res += f'{k} = {v}\n'
+            if k != 'teams':
+                res += f'{k} = {v}\n'
         self.logger.info(res)
         print('\nLOGGING COMPLETED SUCCESSFULLY!\n')
 
@@ -169,11 +176,20 @@ class YurikovDrone(Drone):
     def log_stats(self):
         """
         Инициализация логгера.
+
         Метод вызывается лишь раз в конце "миссии" дронов.
+        Формирует словарь с результатами команд и передаёт данные логгеру.
 
         :return: None
         """
 
+        game_result = {'teams': {}}
+        for team_name, mates in self.scene.teams.items():
+            team_resources = mates[0].my_mothership.payload
+            for drone in mates:
+                team_resources += drone.payload
+            game_result['teams'][team_name] = team_resources
+        game_result.update(self.stats)
         self.need_log = False
-        logger = SpaceLogger(data=self.stats)
+        logger = SpaceLogger(data=game_result)
         logger.log()
