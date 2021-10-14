@@ -39,10 +39,14 @@ class YurikovDrone(Drone):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.state_handle = None
-        self.task_for_move = None
-        self.curr_asteroid = None
-        self.need_turn = True
+        self.states_handle_list = []
+        self.curr_state = None
+        self.task = None
+        self.is_transition_started = False
+        self.is_transition_finished = False
+        self.target_to_turn = None
+        self.is_first_step = True
+        self.enemy_base = None
         self.prev_point = None
         self.manager = self
         self.is_manager = True
@@ -103,10 +107,14 @@ class YurikovDrone(Drone):
 
         if self.is_manager:
             for asteroid in self.asteroids:
-                asteroid.start_worker = None
-        self.task_for_move = states.LOAD_TASK
-        self.state_handle = states.MOVE(self)
-        self.target = self.state_handle.handle()
+                asteroid.worker = None
+        if len(self.scene.motherships) > 1:
+            self.enemy_base = [m_ship for m_ship in self.scene.motherships if m_ship != self.my_mothership][0]
+        self.task = states.LOAD_TASK
+        self.states_handle_list.append(states.MoveState(self))
+        self.states_handle_list.append(states.TransitionState(self))
+        self.switch_state()
+        self.target = self.curr_state.handle_action()
         self.move_at(self.target)
 
     def on_stop_at_asteroid(self, asteroid):
@@ -121,8 +129,8 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        self.state_handle = self.state_handle.next_state
-        self.need_turn = True
+        self.switch_state()
+        self.is_transition_started = True
         self.load_from(asteroid)
 
     def on_stop_at_mothership(self, mothership):
@@ -137,9 +145,30 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        self.state_handle = self.state_handle.next_state
-        self.need_turn = True
+        self.switch_state()
+        self.is_transition_started = True
         self.unload_to(mothership)
+
+    def on_load_complete(self):
+        self.switch_state()
+        self.is_transition_started = False
+        self.is_transition_finished = True
+
+    def on_unload_complete(self):
+        self.switch_state()
+        self.is_transition_started = False
+        self.is_transition_finished = True
+
+    def switch_state(self):
+        if self.curr_state is None:
+            self.curr_state = self.states_handle_list[0]
+        else:
+            self.curr_state.is_active = False
+            if self.curr_state.__class__ == states.TransitionState:
+                self.curr_state = self.states_handle_list[0]
+            else:
+                self.curr_state = self.states_handle_list[1]
+        self.curr_state.is_active = True
 
     def _update_stats(self, point):
         """
