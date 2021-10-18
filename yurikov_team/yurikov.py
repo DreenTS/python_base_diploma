@@ -1,8 +1,8 @@
 from astrobox.core import Drone
 from robogame_engine.geometry import Point
 
-import yurikov_drone_files.states as states
-from yurikov_drone_files.log_config import configure_logger
+import yurikov_team.states as states
+from yurikov_team.log_config import configure_logger
 
 
 class SpaceLogger:
@@ -39,7 +39,7 @@ class YurikovDrone(Drone):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.states_handle_list = []
+        self.states_handle_list = None
         self.curr_state = None
         self.task = None
         self.is_transition_started = False
@@ -51,11 +51,7 @@ class YurikovDrone(Drone):
         self.manager = self
         self.is_manager = True
         self.need_log = True
-        self.stats = {
-            'empty_range': 0.0,
-            'fully_range': 0.0,
-            'not_fully_range': 0.0,
-        }
+        self.stats = None
         temp_managers_list = [mate for mate in self.teammates if mate.is_manager]
         if temp_managers_list:
             self.manager = temp_managers_list[0]
@@ -75,11 +71,11 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        if self._check_for_end():
+        if self.check_for_end():
             if self.manager.need_log:
                 self.manager.log_stats()
 
-        self._update_stats(point=self.prev_point)
+        self.update_stats(point=self.prev_point)
 
         self.prev_point = Point(self.coord.x, self.coord.y)
 
@@ -110,11 +106,16 @@ class YurikovDrone(Drone):
                 asteroid.worker = None
         if len(self.scene.motherships) > 1:
             self.enemy_base = [m_ship for m_ship in self.scene.motherships if m_ship != self.my_mothership][0]
+        self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
+        self.stats = {
+            'empty_range': 0.0,
+            'fully_range': 0.0,
+            'not_fully_range': 0.0,
+        }
         self.task = states.LOAD_TASK
-        self.states_handle_list.append(states.MoveState(self))
-        self.states_handle_list.append(states.TransitionState(self))
         self.switch_state()
-        self.target = self.curr_state.handle_action()
+        non_empty_asteroids = [astrd for astrd in self.asteroids if not astrd.is_empty]
+        self.target = self.curr_state.handle_action(asteroids_list=non_empty_asteroids, drone_free_space=self.free_space)
         self.move_at(self.target)
 
     def on_stop_at_asteroid(self, asteroid):
@@ -202,13 +203,13 @@ class YurikovDrone(Drone):
             self.curr_state = self.states_handle_list[0]
         else:
             self.curr_state.is_active = False
-            if self.curr_state.__class__ == states.TransitionState:
+            if isinstance(self.curr_state, states.TransitionState):
                 self.curr_state = self.states_handle_list[0]
             else:
                 self.curr_state = self.states_handle_list[1]
         self.curr_state.is_active = True
 
-    def _update_stats(self, point):
+    def update_stats(self, point):
         """
         Вспомогательный метод. Вызывается при каждом шаге игры.
         Дополняет словарь менеджера по ключам, в зависимости от заполненности трюма,
@@ -225,7 +226,7 @@ class YurikovDrone(Drone):
         else:
             self.manager.stats['not_fully_range'] += self.distance_to(point)
 
-    def _check_for_end(self):
+    def check_for_end(self):
         """
         Проверяет, закончилась ли "миссия" дронов (можно ли логгировать).
         Формирует список всех дронов и астероидов.

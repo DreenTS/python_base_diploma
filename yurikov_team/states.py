@@ -17,7 +17,7 @@ class DroneState(ABC):
         self.drone = drone
         self.is_active = False
 
-    def _get_rel_list(self, asteroids_list):
+    def _get_rel_list(self, asteroids_list, drone_free_space):
         """
         Получить список отношений.
         
@@ -48,7 +48,8 @@ class DroneState(ABC):
         Возвращает результирующий список отношений.
         
         :param asteroids_list: список астероидов
-        :return: list, список отношений 
+        :param drone_free_space: свободное место в трюме астероида
+        :return: list, список отношений
         """
         
         in_valid_range = []
@@ -65,10 +66,6 @@ class DroneState(ABC):
                 list_append = in_over_range.append
 
             dist = self.drone.distance_to(asteroid) + self.drone.my_mothership.distance_to(asteroid)
-
-            drone_free_space = self.drone.free_space
-            if self.__class__ == TransitionState and isinstance(self.drone.target, Asteroid):
-                drone_free_space -= self.drone.target.payload
 
             if asteroid.payload >= drone_free_space:
                 payload = drone_free_space
@@ -93,7 +90,7 @@ class DroneState(ABC):
 
         return res_list
 
-    def handle_action(self):
+    def handle_action(self, asteroids_list, drone_free_space):
         """
         Метод обработки действия внутри состояния.
 
@@ -128,19 +125,15 @@ class DroneState(ABC):
                 устанавливает задачу для перемещения - "на выгрузку";
                 возвращает объект базы.
 
+        :param asteroids_list: список астероидов
+        :param drone_free_space: свободное место в трюме астероида
         :return: Asteroid or MotherShip object, цель для перемещения или поворота - астероид или база
         """
 
         if self.drone.task == UNLOAD_TASK:
             return self.drone.my_mothership
         elif self.drone.task == LOAD_TASK:
-            if self.__class__ == MoveState:
-                non_empty_asteroids = [astrd for astrd in self.drone.asteroids if not astrd.is_empty]
-            else:
-                non_empty_asteroids = [astrd for astrd in self.drone.asteroids
-                                       if not astrd.is_empty and astrd != self.drone.target]
-
-            relations = self._get_rel_list(asteroids_list=non_empty_asteroids)
+            relations = self._get_rel_list(asteroids_list=asteroids_list, drone_free_space=drone_free_space)
 
             for astrd_with_rel in relations:
                 asteroid, rel = astrd_with_rel
@@ -199,11 +192,15 @@ class MoveState(DroneState):
                     self.drone.task = LOAD_TASK
                 else:
                     self.drone.task = UNLOAD_TASK
-                self.drone.target = self.handle_action()
+                non_empty_asteroids = [astrd for astrd in self.drone.asteroids if not astrd.is_empty]
+                self.drone.target = self.handle_action(asteroids_list=non_empty_asteroids,
+                                                       drone_free_space=self.drone.free_space)
                 self.drone.move_at(self.drone.target)
 
             if self.drone.target and self.drone.target.is_empty:
-                self.drone.target = self.handle_action()
+                non_empty_asteroids = [astrd for astrd in self.drone.asteroids if not astrd.is_empty]
+                self.drone.target = self.handle_action(asteroids_list=non_empty_asteroids,
+                                                       drone_free_space=self.drone.free_space)
                 self.drone.move_at(self.drone.target)
 
 
@@ -236,5 +233,12 @@ class TransitionState(DroneState):
                     self.drone.task = UNLOAD_TASK
                 else:
                     self.drone.task = LOAD_TASK
-                self.drone.target_to_turn = self.handle_action()
+                drone_free_space = self.drone.free_space
+                if isinstance(self.drone.target, Asteroid):
+                    drone_free_space -= self.drone.target.payload
+                non_empty_asteroids = [astrd for astrd in self.drone.asteroids
+                                       if not astrd.is_empty and astrd != self.drone.target]
+
+                self.drone.target_to_turn = self.handle_action(asteroids_list=non_empty_asteroids,
+                                                               drone_free_space=drone_free_space)
                 self.drone.turn_to(self.drone.target_to_turn)
