@@ -3,35 +3,6 @@ from robogame_engine.geometry import Point
 
 import yurikov_team.states as states
 from yurikov_team import utils
-from yurikov_team.log_config import configure_logger
-
-
-class SpaceLogger:
-    """
-    Класс для логгера статистики.
-
-    """
-
-    def __init__(self, data):
-        self.logger = configure_logger()
-        self.data = data
-
-    def log(self):
-        res = 'Run stats:\n'
-        winner = list(self.data['teams'].keys())[0]
-        for name, score in self.data['teams'].items():
-            res += f'{name}: {score}\n'
-            if score > self.data['teams'][winner]:
-                winner = name
-
-        res += f'\nWINNER: {winner}\n\n'
-
-        for k, v in self.data.items():
-            if k != 'teams':
-                res += f'{k} = {v}\n'
-
-        self.logger.info(res)
-        print('\nLOGGING COMPLETED SUCCESSFULLY!\n')
 
 
 class YurikovDrone(Drone):
@@ -46,7 +17,6 @@ class YurikovDrone(Drone):
         super().__init__(**kwargs)
         self.states_handle_list = None
         self.curr_state = None
-        self.prev_point = None
         self.turret_point = None
         self.in_regroup_move = True
         self.enemy_drones = None
@@ -59,21 +29,15 @@ class YurikovDrone(Drone):
 
         _temp_managers_list = [mate for mate in self.teammates if mate.is_manager]
         if _temp_managers_list:
-            self.manager = _temp_managers_list[0]
             self.is_manager = False
-            self.need_log = False
         else:
-            self.manager = self
             self.is_manager = True
-            self.need_log = True
 
     def on_heartbeat(self) -> None:
         """
         Выполняется при каждом шаге игры.
 
-        #TODO Проверяет, закончилась ли "миссия" дронов (можно ли логгировать).
-
-        Есл текущее состояние дрона деактивировано:
+        Если текущее состояние дрона деактивировано:
             ! меняет сстояние.
 
         Обновляет значение признаков оптимальности перемещения дрона.
@@ -84,19 +48,11 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        # if self.scene.get_game_result()[0]:
-        #     if self.manager.need_log:
-        #         self.manager.log_stats()
-
         if not self.curr_state.is_active:
             self.switch_state()
 
         if self.target is None:
             self.target = self.curr_state.handle_action()
-
-        self.update_stats(point=self.prev_point)
-
-        self.prev_point = Point(self.coord.x, self.coord.y)
 
         self.curr_state.on_heartbeat()
 
@@ -135,10 +91,12 @@ class YurikovDrone(Drone):
         self.enemy_drones = [drone for drone in self.scene.drones if self.team != drone.team]
         self.enemy_bases = [m_ship for m_ship in self.scene.motherships if m_ship != self.my_mothership]
         self.task = states.LOAD_TASK
+
         if len(self.scene.teams) <= 2 and self.is_manager:
             self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
         else:
             self.states_handle_list = [states.TurretState(self), states.MoveState(self), states.TransitionState(self)]
+
         self.switch_state()
         self.turret_point = utils.get_turret_point(self, self.id)
         self.move_at(self.turret_point)
@@ -273,41 +231,3 @@ class YurikovDrone(Drone):
             else:
                 self.curr_state = self.states_handle_list[1]
         self.curr_state.is_active = True
-
-    def update_stats(self, point: Point) -> None:
-        """
-        Вспомогательный метод. Вызывается при каждом шаге игры.
-        Дополняет словарь менеджера по ключам, в зависимости от заполненности трюма,
-        если дрон перемещался по сцене.
-
-        :param point: Point object, предыдущая точка на сцене, где находился дрон
-        :return: None
-        """
-
-        if self.is_empty:
-            self.manager.stats['empty_range'] += self.distance_to(point)
-        elif self.is_full:
-            self.manager.stats['fully_range'] += self.distance_to(point)
-        else:
-            self.manager.stats['not_fully_range'] += self.distance_to(point)
-
-    def log_stats(self) -> None:
-        """
-        Инициализация логгера.
-
-        Метод вызывается лишь раз в конце "миссии" дронов.
-        Формирует словарь с результатами команд и передаёт данные логгеру.
-
-        :return: None
-        """
-
-        game_result = {'teams': {}}
-        for team_name, mates in self.scene.teams.items():
-            team_resources = mates[0].my_mothership.payload
-            for drone in mates:
-                team_resources += drone.payload
-            game_result['teams'][team_name] = team_resources
-        game_result.update(self.stats)
-        self.need_log = False
-        logger = SpaceLogger(game_result)
-        logger.log()

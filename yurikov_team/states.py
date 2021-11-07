@@ -263,7 +263,7 @@ class TurretState(DroneState):
 
                     if _delta_l > 0:
                         self.drone.in_regroup_move = True
-                        _length = 1.0 if self.drone.enemy_drones else _delta_l
+                        _length = _delta_l if not self.drone.enemy_drones else 1.0
                         _fire_point = utils.get_next_point(self.drone.coord, self.drone.direction, _length)
                         self.drone.move_at(_fire_point)
 
