@@ -1,7 +1,4 @@
 import math
-import random
-
-from typing import List
 
 from astrobox.core import MotherShip, Drone
 from robogame_engine.geometry import Point, Vector
@@ -9,20 +6,19 @@ from robogame_engine.geometry import Point, Vector
 from yurikov_team import settings
 
 
-def get_turret_point(src: Drone, index: int) -> Point:
+def get_turret_point(src: Drone) -> Point:
     """
     Получить точку "турели" около своей базы.
 
     Координаты точки будут меняться в зависимости от положения базы на игровом поле.
 
     :param src: Drone object, дрон, для которого высчитываем положение точки
-    :param index: int, индекс дрона на игровом поле (его ID)
     :return: Point, точка "турели"
     """
 
     extra_angle, extra_coords = settings.TEAM_TURRET_EXTRA_DATA[src.team_number]
-    main_angle = 90 / (len(src.teammates) + 2)
-    angle_coeff = index % settings.DRONES_AMOUNT + 1
+    main_angle = 90 / (settings.DRONES_AMOUNT + 1)
+    angle_coeff = src.id % settings.DRONES_AMOUNT + 1
     radius = (src.radius + src.my_mothership.radius) * 2
 
     curr_angle = extra_angle + main_angle * angle_coeff
@@ -31,6 +27,46 @@ def get_turret_point(src: Drone, index: int) -> Point:
     next_y = extra_coords[1] + radius * math.sin(math.radians(curr_angle))
 
     return Point(next_x, next_y)
+
+
+def get_combat_point(src: Drone, target: Drone or MotherShip) -> Point:
+    """
+    Получить точку для атаки на цель.
+
+    Координаты точки будут меняться в зависимости от точек атаки союзников.
+
+    :param src: Drone object, дрон, для которого высчитываем положение точки
+    :param target: Drone or MotherShip object, цель для атаки
+    :return: Point, точка атаки
+    """
+
+    center = Point(settings.FIELD_SIZE[0] / 2, settings.FIELD_SIZE[1] / 2)
+    direction_to_center = Vector.from_points(src.coord, center).direction
+    direction_to_target = Vector.from_points(src.coord, target.coord).direction
+    delta = get_delta_angle(direction_to_target, direction_to_center)
+    if delta > 0:
+        extra_angle = 90.0
+    else:
+        extra_angle = -90.0
+
+    range_radius = src.my_mothership.distance_to(target) - (src.my_mothership.radius + src.gun.projectile.radius)
+    if range_radius < src.gun.shot_distance:
+        radius = range_radius
+    else:
+        radius = src.gun.shot_distance
+    angle = (direction_to_target + 180) % 360
+    next_x = target.x + radius * math.cos(math.radians(angle))
+    next_y = target.y + radius * math.sin(math.radians(angle))
+
+    origin_point = Point(next_x, next_y)
+
+    shift = src.radius * 2
+    _point = get_next_point(point=origin_point, angle=angle + extra_angle,
+                            length=shift * (src.id % settings.DRONES_AMOUNT))
+
+    res_point = normalize_point(point=_point, radius=src.radius)
+
+    return res_point
 
 
 def check_for_enemy(src: Drone, enemy: Drone or MotherShip) -> bool:
@@ -45,7 +81,7 @@ def check_for_enemy(src: Drone, enemy: Drone or MotherShip) -> bool:
     angle = get_firing_angle(shooter=src, target=enemy)
     direction_to_enemy = Vector.from_points(src.coord, enemy.coord).direction
     delta = get_delta_angle(a_angle=src.direction, b_angle=direction_to_enemy)
-    return delta <= angle
+    return abs(delta) <= angle
 
 
 def check_for_teammates(src: Drone) -> Drone or MotherShip:
@@ -62,13 +98,12 @@ def check_for_teammates(src: Drone) -> Drone or MotherShip:
         _mate_to_base = mate.distance_to(src.my_mothership)
         _src_to_base = src.distance_to(src.my_mothership)
         if src.distance_to(mate) <= mate.radius + src.gun.projectile.radius:
-            if _mate_to_base > _src_to_base:
-                return mate
+            return mate
 
         angle = get_firing_angle(shooter=src, target=mate)
         direction_to_mate = Vector.from_points(src.coord, mate.coord).direction
         delta = get_delta_angle(a_angle=src.direction, b_angle=direction_to_mate)
-        if delta <= angle:
+        if abs(delta) <= angle:
             return mate
 
     return src
@@ -84,6 +119,8 @@ def get_firing_angle(shooter: Drone, target: Drone or MotherShip) -> float:
     """
 
     a = shooter.distance_to(target)
+    if target.team == shooter.team:
+        a += 0.1
     b = shooter.gun.projectile.radius + target.radius
     return math.degrees(math.atan(b / a))
 
@@ -100,11 +137,11 @@ def get_delta_angle(a_angle: float, b_angle: float) -> float:
     delta = a_angle - b_angle
 
     if delta < -180:
-        return abs(delta + 2 * 180)
+        return delta + 2 * 180
     elif delta > 180:
-        return abs(delta - 2 * 180)
+        return delta - 2 * 180
     else:
-        return abs(delta)
+        return delta
 
 
 def get_next_point(point: Point, angle: float, length: float) -> Point:
@@ -124,39 +161,16 @@ def get_next_point(point: Point, angle: float, length: float) -> Point:
     return Point(next_x, next_y)
 
 
-def get_regroup_point(src: Drone, mate: Drone or MotherShip) -> Point:
-    """
-    Получить точку "регруппировки".
-
-    :param src: Drone object, дрон-источник
-    :param mate: Drone or MotherShip object, объект союзного дрона или базы
-    :return: Point, точка "регруппировки"
-    """
-
-    _angle = 90 * random.choice([-1, 1])
-    _length = mate.radius * 2
-    return get_next_point(src.coord, _angle, _length)
-
-
-def normalize_point(point: Point, mother: MotherShip, radius: float, objects: List[MotherShip] = None) -> Point:
+def normalize_point(point: Point, radius: float) -> Point:
     """
     Нормализовать точку.
-
     Если точка выходит за границы игрового поля:
-        ! возвращает ближайшие к границе допустимые значения x и y.
-    Если передан параметр objects:
-        ! проходится по списку объектов;
-        ! если расстояние от текущей точки до объекта меньше суммы их радиусов:
-            возращает координаты базы;
+        возвращает ближайшие к границе допустимые значения x и y.
 
     :param point: Point, текущая точка
-    :param mother: MotherShip object, объект союзной базы
     :param radius: float, радиус объекта, чья точка была передана как параметр point
-    :param objects: list, список всех баз, находящихся на игровом поле
     :return: Point, нормализованная точка
     """
-
-    objects = objects or []
 
     x_list = [radius + 2, settings.FIELD_SIZE[0] - radius - 2, point.x]
     y_list = [radius + 2, settings.FIELD_SIZE[1] - radius - 2, point.y]
@@ -165,10 +179,6 @@ def normalize_point(point: Point, mother: MotherShip, radius: float, objects: Li
     y_list.sort()
 
     _point = Point(x_list[1], y_list[1])
-
-    for obj in objects:
-        if _point.distance_to(obj) <= obj.radius + radius:
-            return mother.coord
 
     return _point
 
