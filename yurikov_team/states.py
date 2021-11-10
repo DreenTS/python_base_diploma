@@ -284,7 +284,7 @@ class CombatState(DroneState):
             else:
                 _is_enemy = utils.check_for_enemy(self.drone, self.drone.target)
 
-                if self.shots == 10 and len(self.drone.manager.enemy_drones) >= 3:
+                if self.shots == 10 and len(self.drone.manager.enemy_drones) > 3:
                     self.regroup()
 
                 elif _is_enemy:
@@ -298,12 +298,13 @@ class CombatState(DroneState):
                         else:
                             self.drone.combat_point = utils.get_next_point(self.drone.coord,
                                                                            self.drone.direction,
-                                                                           1.0)
+                                                                           _delta_l)
                             self.drone.move_at(self.drone.combat_point)
 
                     elif _teammate_on_firing_line != self.drone:
-                        if _is_on_turret_point and self.drone.gun.can_shot:
-                            self.shots += 1
+                        if _is_on_turret_point:
+                            if self.drone.gun.can_shot:
+                                self.shots += 1
                             self.drone.gun.shot(self.drone.target)
                         else:
                             self.regroup()
@@ -324,5 +325,6 @@ class CombatState(DroneState):
         self.shots = 0
         self.drone.target = None
         self.drone.combat_point = None
-        self.drone.in_combat_move = True
-        self.drone.move_at(self.drone.my_mothership)
+        if self.drone.curr_game_step > 400:
+            self.drone.in_combat_move = True
+            self.drone.move_at(self.drone.my_mothership)

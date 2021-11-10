@@ -19,6 +19,7 @@ class YurikovDrone(Drone):
         self.curr_state = None
         self.turret_point = None
         self.combat_point = None
+        self.curr_game_step = 0
         self.need_to_regroup = False
         self.in_combat_move = False
         self.is_victory = False
@@ -54,20 +55,21 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        if not self.curr_state.is_active:
+        self.curr_game_step += 1
+
+        if self.curr_state is None or not self.curr_state.is_active:
             self.switch_state()
 
         if self.target is None and not self.in_combat_move:
             self.target = self.curr_state.handle_action()
 
             if isinstance(self.curr_state, states.CombatState):
-                self.in_combat_move = True
-                _extra_dist = self.turret_point.distance_to(self.my_mothership)
-                _danger_dist = self.gun.shot_distance
-                _from_mother_to_enemy = self.my_mothership.distance_to(self.target) - _extra_dist
-                if _from_mother_to_enemy <= _danger_dist and len(self.manager.enemy_drones) > 3:
-                    self.move_at(self.turret_point)
+                if len(self.manager.enemy_drones) > 3 or self.curr_game_step <= 400:
+                    if self.distance_to(self.turret_point) >= 1.0:
+                        self.in_combat_move = True
+                        self.move_at(self.turret_point)
                 else:
+                    self.in_combat_move = True
                     self.combat_point = utils.get_combat_point(self, self.target)
                     self.move_at(self.combat_point)
 
@@ -100,11 +102,10 @@ class YurikovDrone(Drone):
 
         self.task = states.LOAD_TASK
 
-        if settings.DRONES_AMOUNT > 5:
-            for _id in range(6, settings.DRONES_AMOUNT):
-                if self.id % _id == 0:
-                    self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
-                    break
+        for _id in range(6, settings.DRONES_AMOUNT + 1):
+            if self.id % _id == 0:
+                self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
+                break
         else:
             self.states_handle_list = [states.CombatState(self), states.MoveState(self), states.TransitionState(self)]
 
@@ -237,6 +238,8 @@ class YurikovDrone(Drone):
             if isinstance(self.curr_state, states.CombatState):
                 self.states_handle_list.pop(0)
         else:
+            if not isinstance(self.curr_state, states.CombatState):
+                self.curr_state.is_active = False
             if isinstance(self.curr_state, states.CombatState) or isinstance(self.curr_state, states.TransitionState):
                 self.curr_state = self.states_handle_list[0]
             else:
