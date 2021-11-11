@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # pip install -r requirements.txt
+import datetime
 
 from astrobox.space_field import SpaceField
 from stage_03_harvesters.driller import DrillerDrone
@@ -25,4 +26,5 @@ if __name__ == '__main__':
     team_3 = [DrillerDrone() for _ in range(settings.DRONES_AMOUNT)]
     team_4 = [DevastatorDrone() for _ in range(settings.DRONES_AMOUNT)]
 
+    print(f'\nRUN AT: {datetime.datetime.now()}\n')
     scene.go()

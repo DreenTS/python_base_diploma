@@ -45,24 +45,23 @@ def get_combat_point(src: Drone, target: Drone or MotherShip) -> Point:
     direction_to_target = Vector.from_points(src.coord, target.coord).direction
     delta = get_delta_angle(direction_to_target, direction_to_center)
     if delta > 0:
-        extra_angle = 90.0
+        angle_direction = src.id % settings.DRONES_AMOUNT
     else:
-        extra_angle = -90.0
+        angle_direction = (src.id % settings.DRONES_AMOUNT) * -1
 
+    valid_range_radius = src.gun.shot_distance + src.gun.projectile.radius
     range_radius = src.my_mothership.distance_to(target) - (src.my_mothership.radius + src.gun.projectile.radius)
-    if range_radius < src.gun.shot_distance:
+    if range_radius < valid_range_radius:
         radius = range_radius
     else:
-        radius = src.gun.shot_distance
-    angle = (direction_to_target + 180) % 360
+        radius = valid_range_radius
+
+    extra_angle = math.degrees(math.atan(src.radius * 2 / radius))
+    angle = (direction_to_target + 180) % 360 + extra_angle * angle_direction
     next_x = target.x + radius * math.cos(math.radians(angle))
     next_y = target.y + radius * math.sin(math.radians(angle))
 
-    origin_point = Point(next_x, next_y)
-
-    shift = src.radius * 2
-    _point = get_next_point(point=origin_point, angle=angle + extra_angle,
-                            length=shift * (src.id % settings.DRONES_AMOUNT))
+    _point = Point(next_x, next_y)
 
     res_point = normalize_point(point=_point, radius=src.radius)
 
@@ -119,7 +118,7 @@ def get_firing_angle(shooter: Drone, target: Drone or MotherShip) -> float:
     """
 
     a = shooter.distance_to(target)
-    if target.team == shooter.team:
+    if shooter.team == target.team:
         a += 0.1
     b = shooter.gun.projectile.radius + target.radius
     return math.degrees(math.atan(b / a))
@@ -182,3 +181,18 @@ def normalize_point(point: Point, radius: float) -> Point:
 
     return _point
 
+
+def is_base_in_danger(src: Drone, turret_point: Point, target: Drone or MotherShip) -> bool:
+    """
+    Проверить, находится ли союзная база в опасности.
+
+    :param src: Drone object, дрон-источник
+    :param turret_point: Point, точка "турели" для дрона-источника
+    :param target: Drone or MotherShip object, текущая цель атаки для дрона-источника
+    :return: bool, находится ли текущая цель в опасной близости к союзной базе
+    """
+
+    _extra_dist = turret_point.distance_to(src.my_mothership)
+    _danger_dist = src.gun.shot_distance
+    _from_mother_to_enemy = src.my_mothership.distance_to(target) - _extra_dist
+    return _from_mother_to_enemy <= _danger_dist
