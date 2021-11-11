@@ -1,3 +1,4 @@
+# TODO - Лишний импорт
 import random
 
 from astrobox.core import Drone, Asteroid, MotherShip
@@ -65,6 +66,11 @@ class YurikovDrone(Drone):
 
         _all_need_to_sync = [mate.need_to_sync for mate in self.teammates + [self] if mate.is_alive]
         if self.at_sync_point:
+            # TODO - Есть такой приём, помогающий понять логику алгоритма
+            #  Если в ветке if содержится нелинейная логика или циклы, то стоит вынести код этой ветки
+            #  в отдельный метод с понятным неймингом
+            #  Тогда не придётся вникать в детали, чтобы понять алгоритм
+            #  Активно пользуйтесь этим приёмом
             _is_base_in_danger = utils.is_base_in_danger(self, self.turret_point, self.target)
             if _is_base_in_danger:
                 self.at_sync_point = False

@@ -28,3 +28,5 @@ if __name__ == '__main__':
 
     print(f'\nRUN AT: {datetime.datetime.now()}\n')
     scene.go()
+
+# зачёт!
