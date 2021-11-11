@@ -180,11 +180,11 @@ class CombatState(DroneState):
         enemy_is_near = []
         manager = self.drone.manager
         extra_dist = manager.turret_point.distance_to(manager.my_mothership)
-        danger_dist = manager.gun.shot_distance
 
         for i, drone in enumerate(manager.enemy_drones):
+            _is_base_in_danger = utils.is_base_in_danger(manager, manager.turret_point, drone)
             from_mother_to_enemy = manager.my_mothership.distance_to(drone) - extra_dist
-            if from_mother_to_enemy <= danger_dist:
+            if _is_base_in_danger:
                 enemy_is_near.append((drone, from_mother_to_enemy))
             else:
                 rel = manager.my_mothership.distance_to(drone)
@@ -205,10 +205,9 @@ class CombatState(DroneState):
         Выполняется при каждом шаге игры.
 
         Проверяет, победила ли команда дрона (уничтожены все вражеские дроны и базы).
-        Если дрон не находится "в боевом перемещении":
-
-            если всем союзным дронам необходимо перегруппироваться:
+        ! Если всем союзным дронам необходимо перегруппироваться:
                 вызывает метод regroup();
+        ! Если дрон не находится "в боевом перемещении":
 
             ! если прочность щита дрона упала ниже 40%:
                 вызывает метод regroup();
@@ -221,7 +220,7 @@ class CombatState(DroneState):
                     сообщает всем союзникам, что команда победила;
                     заново формирует списки вражеских баз;
 
-            !если было сделано 10 выстрелов подряд и (кол-во живых вражеских дронов) >= 3:
+            ! если было сделано 10 выстрелов подряд и (кол-во живых вражеских дронов) >= 3:
                 вызывает метод regroup();
 
             ! если дрон нацелен на врага:
@@ -230,7 +229,7 @@ class CombatState(DroneState):
                     движется к врагу;
 
                 ! если на линии огня есть союзник и дрон не находится в точке "турели":
-                    вызывает метод regroup();
+                    сообщает о необходимости перегруппировки;
                 иначе:
                     стреляет во врага;
 
@@ -243,7 +242,7 @@ class CombatState(DroneState):
         """
 
         _is_victory = [mate.is_victory for mate in self.drone.teammates + [self.drone] if mate.is_alive]
-        _all_need_regroup = [mate.need_to_regroup for mate in self.drone.teammates + [self.drone] if mate.is_alive]
+        _all_need_to_regroup = [mate.need_to_regroup for mate in self.drone.teammates + [self.drone] if mate.is_alive]
 
         if any(_is_victory):
             self.drone.target = None
@@ -251,13 +250,15 @@ class CombatState(DroneState):
             self.drone.is_victory = True
             self.is_active = False
 
-        elif not self.drone.in_combat_move:
-            if any(_all_need_regroup):
-                self.drone.need_to_regroup = False
-                self.regroup()
+        elif any(_all_need_to_regroup) and self.drone.distance_to(
+                self.drone.my_mothership) > self.drone.my_mothership.radius:
+            self.drone.need_to_regroup = False
+            self.regroup()
 
-            elif self.drone.meter_2 < .4:
-                if len(self.drone.manager.enemy_drones) <= 2:
+        elif not self.drone.in_combat_move:
+
+            if self.drone.meter_2 < .4:
+                if len(self.drone.manager.enemy_drones) <= 3 or not self.drone.manager.enemy_drones:
                     self.regroup()
                 else:
                     self.drone.need_to_regroup = True
@@ -288,11 +289,12 @@ class CombatState(DroneState):
                     self.regroup()
 
                 elif _is_enemy:
-                    _delta_l = self.drone.distance_to(self.drone.target) - self.drone.gun.shot_distance
+                    _delta_l = self.drone.distance_to(self.drone.target) - (
+                                self.drone.gun.shot_distance + self.drone.gun.projectile.radius)
                     _teammate_on_firing_line = utils.check_for_teammates(self.drone)
                     _is_on_turret_point = self.drone.distance_to(self.drone.turret_point) < 1.0
 
-                    if _delta_l > 0:
+                    if _delta_l > 0.0:
                         if _is_on_turret_point:
                             self.regroup()
                         else:
@@ -307,7 +309,10 @@ class CombatState(DroneState):
                                 self.shots += 1
                             self.drone.gun.shot(self.drone.target)
                         else:
-                            self.regroup()
+                            if not self.drone.manager.enemy_drones:
+                                self.drone.gun.shot(self.drone.target)
+                            else:
+                                self.drone.need_to_regroup = True
 
                     elif self.drone.gun.can_shot:
                         self.shots += 1
