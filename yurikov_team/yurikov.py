@@ -1,6 +1,3 @@
-# TODO - Лишний импорт
-import random
-
 from astrobox.core import Drone, Asteroid, MotherShip
 from robogame_engine.geometry import Point
 
@@ -47,49 +44,30 @@ class YurikovDrone(Drone):
         """
         Выполняется при каждом шаге игры.
 
-        Проверяет, необходима ли команде дронов синхронизация; если да - выполняет её.
+        Если команде дронов необходима синхронизация;
+            вызывает метод sync_with_teammates() (подробнее см. docstrings метода);
 
-        Если текущее состояние дрона деактивировано:
-            меняет сстояние.
+        Иначе:
+            если текущее состояние дрона деактивировано:
+                меняет сстояние;
 
-        Если дрону не назначена цель, получает её из обработки внутри состояния.
-        Если текущее состояние - "сражение", то выбирает позицию для перемещения и движется к ней.
+            если дрону не назначена цель:
+                получает её из обработки внутри состояния;
 
-        Вызывает метод состояния дрона on_heartbeat().
+            если текущее состояние - "сражение":
+                метод выбора точки сражения внутри состояния choice_of_combat_point();
 
-        (подробнее см. docstrings методов состояний в states.py).
+            вызывает метод состояния дрона on_heartbeat().
+
+            (подробнее см. docstrings методов состояний в states.py).
 
         :return: None
         """
 
         self.curr_game_step += 1
 
-        _all_need_to_sync = [mate.need_to_sync for mate in self.teammates + [self] if mate.is_alive]
         if self.at_sync_point:
-            # TODO - Есть такой приём, помогающий понять логику алгоритма
-            #  Если в ветке if содержится нелинейная логика или циклы, то стоит вынести код этой ветки
-            #  в отдельный метод с понятным неймингом
-            #  Тогда не придётся вникать в детали, чтобы понять алгоритм
-            #  Активно пользуйтесь этим приёмом
-            _is_base_in_danger = utils.is_base_in_danger(self, self.turret_point, self.target)
-            if _is_base_in_danger:
-                self.at_sync_point = False
-                self.need_to_sync = False
-                if self.distance_to(self.turret_point) >= 1.0:
-                    self.in_combat_move = True
-                    self.move_at(self.turret_point)
-            else:
-                if not self.manager.enemy_drones:
-                    self.need_to_sync = False
-                if self.need_to_sync:
-                    if all(_all_need_to_sync):
-                        for mate in self.teammates + [self]:
-                            mate.need_to_sync = False
-                if not self.need_to_sync:
-                    self.in_combat_move = True
-                    self.at_sync_point = False
-                    self.combat_point = utils.get_combat_point(self, self.target)
-                    self.move_at(self.combat_point)
+            self.sync_with_teammates()
         else:
             if self.curr_state is None or not self.curr_state.is_active:
                 self.switch_state()
@@ -98,22 +76,50 @@ class YurikovDrone(Drone):
                 self.target = self.curr_state.handle_action()
 
                 if isinstance(self.curr_state, states.CombatState):
-                    _is_base_in_danger = utils.is_base_in_danger(self, self.turret_point, self.target)
-                    if self.curr_game_step <= 400 or _is_base_in_danger:
-                        if self.distance_to(self.turret_point) >= 1.0:
-                            self.in_combat_move = True
-                            self.move_at(self.turret_point)
-                    else:
-                        self.in_combat_move = True
-                        if self.manager.enemy_drones:
-                            self.need_to_sync = True
-                            self.at_sync_point = True
-                            self.move_at(self.my_mothership)
-                        else:
-                            self.combat_point = utils.get_combat_point(self, self.target)
-                            self.move_at(self.combat_point)
+                    self.curr_state.choice_of_combat_point()
 
             self.curr_state.on_heartbeat()
+
+    def sync_with_teammates(self) -> None:
+        """
+        Метод для синхронизации дрона с тиммейтами на базе.
+
+        Если база в опасности и дрон не находится в точке "турели":
+            движется к точке "турели";
+
+        Иначе:
+            если на поле не осталось живых вражеских дронов:
+                синхронизация не нужна;
+
+            если дрону нужно синхронизироваться:
+                ждёт всех тиммейтов в точке синхронизации (на базе);
+
+            если уже не нужно синхронизироваться:
+                выбирает точку сражения и движется к ней.
+
+        :return: None
+        """
+
+        _all_need_to_sync = [mate.need_to_sync for mate in self.teammates + [self] if mate.is_alive]
+        _is_base_in_danger = utils.is_base_in_danger(self, self.turret_point, self.target)
+        if _is_base_in_danger:
+            self.at_sync_point = False
+            self.need_to_sync = False
+            if self.distance_to(self.turret_point) >= 1.0:
+                self.in_combat_move = True
+                self.move_at(self.turret_point)
+        else:
+            if not self.manager.enemy_drones:
+                self.need_to_sync = False
+            if self.need_to_sync:
+                if all(_all_need_to_sync):
+                    for mate in self.teammates + [self]:
+                        mate.need_to_sync = False
+            if not self.need_to_sync:
+                self.in_combat_move = True
+                self.at_sync_point = False
+                self.combat_point = utils.get_combat_point(self, self.target)
+                self.move_at(self.combat_point)
 
     def on_born(self) -> None:
         """

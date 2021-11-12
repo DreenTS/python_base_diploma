@@ -333,3 +333,27 @@ class CombatState(DroneState):
         if self.drone.curr_game_step > 400:
             self.drone.in_combat_move = True
             self.drone.move_at(self.drone.my_mothership)
+
+    def choice_of_combat_point(self) -> None:
+        """
+        Выбор точки сражения, если у дрона нет текущей цели.
+
+        Выбирает позицию для перемещения и движется к ней.
+
+        :return: None
+        """
+
+        _is_base_in_danger = utils.is_base_in_danger(self.drone, self.drone.turret_point, self.drone.target)
+        if self.drone.curr_game_step <= 400 or _is_base_in_danger:
+            if self.drone.distance_to(self.drone.turret_point) >= 1.0:
+                self.drone.in_combat_move = True
+                self.drone.move_at(self.drone.turret_point)
+        else:
+            self.drone.in_combat_move = True
+            if self.drone.manager.enemy_drones:
+                self.drone.need_to_sync = True
+                self.drone.at_sync_point = True
+                self.drone.move_at(self.drone.my_mothership)
+            else:
+                self.drone.combat_point = utils.get_combat_point(self.drone, self.drone.target)
+                self.drone.move_at(self.drone.combat_point)
