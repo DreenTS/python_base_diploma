@@ -213,30 +213,16 @@ class CombatState(DroneState):
                 вызывает метод regroup();
 
             ! если цель дрона уничтожена:
-                удаляет цель из списка вражеских дронов/баз для менеджера;
-                сообщает всем союзникам, что необходимо перегруппироваться;
-
-                если списки вражеских дронов и баз пустые:
-                    сообщает всем союзникам, что команда победила;
-                    заново формирует списки вражеских баз;
+                вызывает метод at_eliminating_of_enemy();
 
             ! если было сделано 10 выстрелов подряд и (кол-во живых вражеских дронов) >= 3:
                 вызывает метод regroup();
 
             ! если дрон нацелен на врага:
-
-                если расстояние до врага меньше дистанции выстрела:
-                    движется к врагу;
-
-                ! если на линии огня есть союзник и дрон не находится в точке "турели":
-                    сообщает о необходимости перегруппировки;
-                иначе:
-                    стреляет во врага;
+                вызывает метод at_targeting_an_enemy();
 
             иначе:
                 поворачивается к врагу
-
-
 
         :return: None
         """
@@ -264,23 +250,7 @@ class CombatState(DroneState):
                     self.drone.need_to_regroup = True
 
             elif self.drone.target and not self.drone.target.is_alive:
-                manager = self.drone.manager
-                if isinstance(self.drone.target, MotherShip):
-                    manager.enemy_bases.clear()
-                else:
-                    manager.enemy_drones = [drone for drone in manager.scene.drones
-                                            if manager.team != drone.team and drone.is_alive]
-
-                if not manager.enemy_drones:
-                    if not manager.enemy_bases:
-                        self.drone.is_victory = True
-                        manager.enemy_bases = [m_ship for m_ship in manager.scene.motherships
-                                               if m_ship != manager.my_mothership]
-                    else:
-                        self.drone.target = None
-                    manager.enemy_bases.sort(key=lambda b: b.payload, reverse=True)
-                else:
-                    self.drone.need_to_regroup = True
+                self.at_eliminating_of_enemy()
 
             else:
                 _is_enemy = utils.check_for_enemy(self.drone, self.drone.target)
@@ -289,36 +259,91 @@ class CombatState(DroneState):
                     self.regroup()
 
                 elif _is_enemy:
-                    _delta_l = self.drone.distance_to(self.drone.target) - (
-                                self.drone.gun.shot_distance + self.drone.gun.projectile.radius)
-                    _teammate_on_firing_line = utils.check_for_teammates(self.drone)
-                    _is_on_turret_point = self.drone.distance_to(self.drone.turret_point) < 1.0
-
-                    if _delta_l > 0.0:
-                        if _is_on_turret_point:
-                            self.regroup()
-                        else:
-                            self.drone.combat_point = utils.get_next_point(self.drone.coord,
-                                                                           self.drone.direction,
-                                                                           _delta_l)
-                            self.drone.move_at(self.drone.combat_point)
-
-                    elif _teammate_on_firing_line != self.drone:
-                        if _is_on_turret_point:
-                            if self.drone.gun.can_shot:
-                                self.shots += 1
-                            self.drone.gun.shot(self.drone.target)
-                        else:
-                            if not self.drone.manager.enemy_drones:
-                                self.drone.gun.shot(self.drone.target)
-                            else:
-                                self.drone.need_to_regroup = True
-
-                    elif self.drone.gun.can_shot:
-                        self.shots += 1
-                        self.drone.gun.shot(self.drone.target)
+                    self.at_targeting_an_enemy()
                 else:
                     self.drone.turn_to(self.drone.target)
+
+    def at_eliminating_of_enemy(self) -> None:
+        """
+        При ликвидации врага (дрона или базы).
+
+        Удаляет цель из списка вражеских дронов/баз для менеджера;
+        Если список вражеских дронов пустой:
+            если список вражеских баз пустой:
+                сообщает всем союзникам, что команда победила;
+                заново формирует списки вражеских баз;
+            иначе:
+                убирает цель дрона;
+            сортирует список вражеских баз.
+        Иначе:
+            сообщает всем союзникам, что необходимо перегруппироваться.
+
+        :return: None
+        """
+
+        manager = self.drone.manager
+        if isinstance(self.drone.target, MotherShip):
+            manager.enemy_bases.clear()
+        else:
+            manager.enemy_drones = [drone for drone in manager.scene.drones
+                                    if manager.team != drone.team and drone.is_alive]
+        if not manager.enemy_drones:
+            if not manager.enemy_bases:
+                self.drone.is_victory = True
+                manager.enemy_bases = [m_ship for m_ship in manager.scene.motherships
+                                       if m_ship != manager.my_mothership]
+            else:
+                self.drone.target = None
+            manager.enemy_bases.sort(key=lambda b: b.payload, reverse=True)
+        else:
+            self.drone.need_to_regroup = True
+
+    def at_targeting_an_enemy(self) -> None:
+        """
+        При наведении на врага.
+
+        Если расстояние до врага меньше дистанции выстрела:
+            если дрон находтся в точке "турели":
+                вызывает метод regroup();
+            иначе:
+                движется к врагу;
+
+        ! Если на линии огня есть союзник и дрон не находится в точке "турели":
+            сообщает о необходимости перегруппировки;
+
+        Иначе:
+            стреляет во врага;
+
+        :return: None
+        """
+
+        _delta_l = self.drone.distance_to(self.drone.target) - (
+                self.drone.gun.shot_distance + self.drone.gun.projectile.radius)
+        _teammate_on_firing_line = utils.check_for_teammates(self.drone)
+        _is_on_turret_point = self.drone.distance_to(self.drone.turret_point) < 1.0
+        if _delta_l > 0.0:
+            if _is_on_turret_point:
+                self.regroup()
+            else:
+                self.drone.combat_point = utils.get_next_point(self.drone.coord,
+                                                               self.drone.direction,
+                                                               _delta_l)
+                self.drone.move_at(self.drone.combat_point)
+
+        elif _teammate_on_firing_line != self.drone:
+            if _is_on_turret_point:
+                if self.drone.gun.can_shot:
+                    self.shots += 1
+                self.drone.gun.shot(self.drone.target)
+            else:
+                if not self.drone.manager.enemy_drones:
+                    self.drone.gun.shot(self.drone.target)
+                else:
+                    self.drone.need_to_regroup = True
+
+        elif self.drone.gun.can_shot:
+            self.shots += 1
+            self.drone.gun.shot(self.drone.target)
 
     def regroup(self) -> None:
         """
