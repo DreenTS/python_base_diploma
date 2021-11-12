@@ -147,7 +147,7 @@ class YurikovDrone(Drone):
 
         self.task = states.LOAD_TASK
 
-        for _id in range(6, len(self.scene.teams[0]) + 1):
+        for _id in range(6, len(self.scene.teams[self.team]) + 1):
             if self.id % _id == 0:
                 self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
                 break

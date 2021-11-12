@@ -21,8 +21,8 @@ def get_turret_point(src: Drone) -> Point:
     }
 
     extra_angle, extra_coords = team_turret_extra_data[src.team_number]
-    main_angle = 90 / (len(src.scene.teams[0]) + 1)
-    angle_coeff = src.id % len(src.scene.teams[0]) + 1
+    main_angle = 90 / (len(src.scene.teams[src.team]) + 1)
+    angle_coeff = src.id % len(src.scene.teams[src.team]) + 1
     radius = (src.radius + src.my_mothership.radius) * 2
 
     curr_angle = extra_angle + main_angle * angle_coeff
@@ -49,9 +49,9 @@ def get_combat_point(src: Drone, target: Drone or MotherShip) -> Point:
     direction_to_target = Vector.from_points(src.coord, target.coord).direction
     delta = get_delta_angle(direction_to_target, direction_to_center)
     if delta > 0:
-        angle_direction = src.id % len(src.scene.teams[0])
+        angle_direction = src.id % len(src.scene.teams[src.team])
     else:
-        angle_direction = (src.id % len(src.scene.teams[0])) * -1
+        angle_direction = (src.id % len(src.scene.teams[src.team])) * -1
 
     valid_range_radius = src.gun.shot_distance + src.gun.projectile.radius
     range_radius = src.my_mothership.distance_to(target) - (src.my_mothership.radius + src.gun.projectile.radius)
