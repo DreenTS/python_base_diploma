@@ -1,9 +1,6 @@
 import math
-
 from astrobox.core import MotherShip, Drone
 from robogame_engine.geometry import Point, Vector
-
-from yurikov_team import settings
 
 
 def get_turret_point(src: Drone) -> Point:
@@ -16,9 +13,16 @@ def get_turret_point(src: Drone) -> Point:
     :return: Point, точка "турели"
     """
 
-    extra_angle, extra_coords = settings.TEAM_TURRET_EXTRA_DATA[src.team_number]
-    main_angle = 90 / (settings.DRONES_AMOUNT + 1)
-    angle_coeff = src.id % settings.DRONES_AMOUNT + 1
+    team_turret_extra_data = {
+        1: [0.0, (0.0, 0.0)],
+        2: [90.0, (src.scene.field[0], 0)],
+        3: [270.0, (0, src.scene.field[1])],
+        4: [180.0, (src.scene.field[0], src.scene.field[1])],
+    }
+
+    extra_angle, extra_coords = team_turret_extra_data[src.team_number]
+    main_angle = 90 / (len(src.scene.teams[0]) + 1)
+    angle_coeff = src.id % len(src.scene.teams[0]) + 1
     radius = (src.radius + src.my_mothership.radius) * 2
 
     curr_angle = extra_angle + main_angle * angle_coeff
@@ -40,14 +44,14 @@ def get_combat_point(src: Drone, target: Drone or MotherShip) -> Point:
     :return: Point, точка атаки
     """
 
-    center = Point(settings.FIELD_SIZE[0] / 2, settings.FIELD_SIZE[1] / 2)
+    center = Point(src.scene.field[0] / 2, src.scene.field[1] / 2)
     direction_to_center = Vector.from_points(src.coord, center).direction
     direction_to_target = Vector.from_points(src.coord, target.coord).direction
     delta = get_delta_angle(direction_to_target, direction_to_center)
     if delta > 0:
-        angle_direction = src.id % settings.DRONES_AMOUNT
+        angle_direction = src.id % len(src.scene.teams[0])
     else:
-        angle_direction = (src.id % settings.DRONES_AMOUNT) * -1
+        angle_direction = (src.id % len(src.scene.teams[0])) * -1
 
     valid_range_radius = src.gun.shot_distance + src.gun.projectile.radius
     range_radius = src.my_mothership.distance_to(target) - (src.my_mothership.radius + src.gun.projectile.radius)
@@ -63,7 +67,7 @@ def get_combat_point(src: Drone, target: Drone or MotherShip) -> Point:
 
     _point = Point(next_x, next_y)
 
-    res_point = normalize_point(point=_point, radius=src.radius)
+    res_point = normalize_point(src=src, point=_point, radius=src.radius)
 
     return res_point
 
@@ -160,19 +164,20 @@ def get_next_point(point: Point, angle: float, length: float) -> Point:
     return Point(next_x, next_y)
 
 
-def normalize_point(point: Point, radius: float) -> Point:
+def normalize_point(src: Drone, point: Point, radius: float) -> Point:
     """
     Нормализовать точку.
     Если точка выходит за границы игрового поля:
         возвращает ближайшие к границе допустимые значения x и y.
 
+    :param src: Drone, дрон-источник
     :param point: Point, текущая точка
     :param radius: float, радиус объекта, чья точка была передана как параметр point
     :return: Point, нормализованная точка
     """
 
-    x_list = [radius + 2, settings.FIELD_SIZE[0] - radius - 2, point.x]
-    y_list = [radius + 2, settings.FIELD_SIZE[1] - radius - 2, point.y]
+    x_list = [radius + 2, src.scene.field[0] - radius - 2, point.x]
+    y_list = [radius + 2, src.scene.field[1] - radius - 2, point.y]
 
     x_list.sort()
     y_list.sort()

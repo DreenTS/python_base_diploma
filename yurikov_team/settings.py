@@ -3,9 +3,3 @@ DRONES_AMOUNT = 5
 DRONES_SPEED = 5
 FIELD_SIZE = (1200, 1200)
 
-TEAM_TURRET_EXTRA_DATA = {
-    1: [0.0, (0.0, 0.0)],
-    2: [90.0, (FIELD_SIZE[0], 0)],
-    3: [270.0, (0, FIELD_SIZE[1])],
-    4: [180.0, (FIELD_SIZE[0], FIELD_SIZE[1])],
-}

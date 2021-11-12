@@ -1,8 +1,7 @@
 from astrobox.core import Drone, Asteroid, MotherShip
 from robogame_engine.geometry import Point
-
 import yurikov_team.states as states
-from yurikov_team import utils, settings
+from yurikov_team import utils
 
 
 class YurikovDrone(Drone):
@@ -148,7 +147,7 @@ class YurikovDrone(Drone):
 
         self.task = states.LOAD_TASK
 
-        for _id in range(6, settings.DRONES_AMOUNT + 1):
+        for _id in range(6, len(self.scene.teams[0]) + 1):
             if self.id % _id == 0:
                 self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
                 break
