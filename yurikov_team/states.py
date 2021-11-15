@@ -355,7 +355,7 @@ class CombatState(DroneState):
         self.shots = 0
         self.drone.target = None
         self.drone.combat_point = None
-        if self.drone.curr_game_step > 400:
+        if self.drone.curr_game_step > self.drone.max_game_step:
             self.drone.in_combat_move = True
             self.drone.move_at(self.drone.my_mothership)
 
@@ -369,7 +369,7 @@ class CombatState(DroneState):
         """
 
         _is_base_in_danger = utils.is_base_in_danger(self.drone, self.drone.turret_point, self.drone.target)
-        if self.drone.curr_game_step <= 400 or _is_base_in_danger:
+        if self.drone.curr_game_step <= self.drone.max_game_step or _is_base_in_danger:
             if self.drone.distance_to(self.drone.turret_point) >= 1.0:
                 self.drone.in_combat_move = True
                 self.drone.move_at(self.drone.turret_point)

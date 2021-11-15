@@ -1,6 +1,6 @@
 from astrobox.core import Drone, Asteroid, MotherShip
 from robogame_engine.geometry import Point
-import yurikov_team.states as states
+from yurikov_team import states
 from yurikov_team import utils
 
 
@@ -19,6 +19,7 @@ class YurikovDrone(Drone):
         self.turret_point = None
         self.combat_point = None
         self.curr_game_step = 0
+        self.max_game_step = 0
         self.need_to_regroup = False
         self.need_to_sync = False
         self.at_sync_point = False
@@ -154,7 +155,11 @@ class YurikovDrone(Drone):
         else:
             self.states_handle_list = [states.CombatState(self), states.MoveState(self), states.TransitionState(self)]
 
-        self.switch_state()
+        if not self.manager.enemy_drones:
+            self.states_handle_list.pop(0)
+
+        _teams = len(self.scene.teams)
+        self.max_game_step = 50 if _teams <= 2 else 100 * _teams
 
         self.turret_point = utils.get_turret_point(self)
 
