@@ -20,6 +20,7 @@ class YurikovDrone(Drone):
         self.combat_point = None
         self.curr_game_step = 0
         self.max_game_step = 0
+        self.need_to_retreat = False
         self.need_to_regroup = False
         self.need_to_sync = False
         self.at_sync_point = False

@@ -205,12 +205,14 @@ class CombatState(DroneState):
         Выполняется при каждом шаге игры.
 
         Проверяет, победила ли команда дрона (уничтожены все вражеские дроны и базы).
+        ! Если всем союзным дронам необходимо отступить:
+                вызывает метод retreat();
         ! Если всем союзным дронам необходимо перегруппироваться:
                 вызывает метод regroup();
         ! Если дрон не находится "в боевом перемещении":
 
             ! если прочность щита дрона упала ниже 40%:
-                вызывает метод regroup();
+                вызывает метод retreat();
 
             ! если цель дрона уничтожена:
                 вызывает метод at_eliminating_of_enemy();
@@ -229,6 +231,7 @@ class CombatState(DroneState):
 
         _is_victory = [mate.is_victory for mate in self.drone.teammates + [self.drone] if mate.is_alive]
         _all_need_to_regroup = [mate.need_to_regroup for mate in self.drone.teammates + [self.drone] if mate.is_alive]
+        _all_need_to_retreat = [mate.need_to_retreat for mate in self.drone.teammates + [self.drone] if mate.is_alive]
 
         if any(_is_victory):
             self.drone.target = None
@@ -236,18 +239,22 @@ class CombatState(DroneState):
             self.drone.is_victory = True
             self.is_active = False
 
-        elif any(_all_need_to_regroup) and self.drone.distance_to(
+        elif any(_all_need_to_retreat) and self.drone.distance_to(
                 self.drone.my_mothership) > self.drone.my_mothership.radius:
+            self.drone.need_to_retreat = False
+            self.retreat()
+
+        elif any(_all_need_to_regroup):
             self.drone.need_to_regroup = False
             self.regroup()
 
         elif not self.drone.in_combat_move:
 
             if self.drone.meter_2 < .4:
-                if len(self.drone.manager.enemy_drones) <= 3 or not self.drone.manager.enemy_drones:
-                    self.regroup()
+                if not self.drone.manager.enemy_drones:
+                    self.retreat()
                 else:
-                    self.drone.need_to_regroup = True
+                    self.drone.need_to_retreat = True
 
             elif self.drone.target and not self.drone.target.is_alive:
                 self.at_eliminating_of_enemy()
@@ -276,7 +283,7 @@ class CombatState(DroneState):
                 убирает цель дрона;
             сортирует список вражеских баз.
         Иначе:
-            сообщает всем союзникам, что необходимо перегруппироваться.
+            сообщает всем союзникам, что необходимо отступить.
 
         :return: None
         """
@@ -296,7 +303,7 @@ class CombatState(DroneState):
                 self.drone.target = None
             manager.enemy_bases.sort(key=lambda b: b.payload, reverse=True)
         else:
-            self.drone.need_to_regroup = True
+            self.drone.need_to_retreat = True
 
     def at_targeting_an_enemy(self) -> None:
         """
@@ -308,8 +315,8 @@ class CombatState(DroneState):
             иначе:
                 движется к врагу;
 
-        ! Если на линии огня есть союзник и дрон не находится в точке "турели":
-            сообщает о необходимости перегруппировки;
+        ! Если на линии огня есть союзник:
+            вызывает метод regroup();
 
         Иначе:
             стреляет во врага;
@@ -331,15 +338,7 @@ class CombatState(DroneState):
                 self.drone.move_at(self.drone.combat_point)
 
         elif _teammate_on_firing_line != self.drone:
-            if _is_on_turret_point:
-                if self.drone.gun.can_shot:
-                    self.shots += 1
-                self.drone.gun.shot(self.drone.target)
-            else:
-                if not self.drone.manager.enemy_drones:
-                    self.drone.gun.shot(self.drone.target)
-                else:
-                    self.drone.need_to_regroup = True
+            self.regroup()
 
         elif self.drone.gun.can_shot:
             self.shots += 1
@@ -353,11 +352,22 @@ class CombatState(DroneState):
         """
 
         self.shots = 0
+        self.drone.in_combat_move = True
+        self.drone.combat_point = utils.get_combat_point(self.drone, self.drone.target)
+        self.drone.move_at(self.drone.combat_point)
+
+    def retreat(self) -> None:
+        """
+        Метод подготовки и запуска отступления.
+
+        :return: None
+        """
+
+        self.shots = 0
         self.drone.target = None
         self.drone.combat_point = None
-        if self.drone.curr_game_step > self.drone.max_game_step:
-            self.drone.in_combat_move = True
-            self.drone.move_at(self.drone.my_mothership)
+        self.drone.in_combat_move = True
+        self.drone.move_at(self.drone.my_mothership)
 
     def choice_of_combat_point(self) -> None:
         """
