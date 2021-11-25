@@ -12,9 +12,14 @@ class YurikovDrone(Drone):
 
     """
 
+    COMBAT_MODE = 'combat'
+    MOVE_MODE = 'move'
+    TRANSITION_MODE = 'transition'
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.states_handle_list = None
+        self.first_transition_finished = False
         self.curr_state = None
         self.turret_point = None
         self.combat_point = None
@@ -67,12 +72,12 @@ class YurikovDrone(Drone):
 
         self.curr_game_step += 1
 
+        if not self.curr_state.is_active:
+            self.switch_state(mode=self.MOVE_MODE)
+
         if self.at_sync_point:
             self.sync_with_teammates()
         else:
-            if self.curr_state is None or not self.curr_state.is_active:
-                self.switch_state()
-
             if self.target is None and not self.in_combat_move:
                 self.target = self.curr_state.handle_action()
 
@@ -148,21 +153,13 @@ class YurikovDrone(Drone):
             self.enemy_bases = [m_ship for m_ship in self.scene.motherships if m_ship != self.my_mothership]
 
         self.task = states.LOAD_TASK
-
-        for _id in range(6, len(self.scene.teams[self.team]) + 1):
-            if self.id % _id == 0:
-                self.states_handle_list = [states.MoveState(self), states.TransitionState(self)]
-                break
-        else:
-            self.states_handle_list = [states.CombatState(self), states.MoveState(self), states.TransitionState(self)]
-
-        if not self.manager.enemy_drones:
-            self.states_handle_list.pop(0)
+        self.states_handle_list = [states.CombatState(self), states.MoveState(self), states.TransitionState(self)]
 
         _teams = len(self.scene.teams)
         self.max_game_step = 50 if _teams <= 2 else 100 * _teams
 
         self.turret_point = utils.get_turret_point(self)
+        self.switch_state(mode=self.MOVE_MODE)
 
     def on_stop_at_point(self, target: Point) -> None:
         """
@@ -196,7 +193,7 @@ class YurikovDrone(Drone):
         if isinstance(self.curr_state, states.CombatState):
             self.in_combat_move = False
         else:
-            self.switch_state()
+            self.switch_state(mode=self.TRANSITION_MODE)
             self.is_transition_started = True
             self.load_from(asteroid)
 
@@ -222,7 +219,7 @@ class YurikovDrone(Drone):
         if isinstance(self.curr_state, states.CombatState):
             self.in_combat_move = False
         else:
-            self.switch_state()
+            self.switch_state(mode=self.TRANSITION_MODE)
             self.is_transition_started = True
             if mothership == self.my_mothership:
                 self.unload_to(mothership)
@@ -249,7 +246,12 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        self.on_transition_complete()
+        if not self.first_transition_finished:
+            self.switch_state(mode=self.COMBAT_MODE)
+            self.is_transition_finished = True
+            self.target = None
+        else:
+            self.on_transition_complete()
 
     def on_transition_complete(self) -> None:
         """
@@ -262,11 +264,11 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        self.switch_state()
+        self.switch_state(mode=self.MOVE_MODE)
         self.is_transition_started = False
         self.is_transition_finished = True
 
-    def switch_state(self) -> None:
+    def switch_state(self, mode: str) -> None:
         """
         Метод переключения состояния.
 
@@ -284,15 +286,12 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        if self.curr_state is None:
+        if self.curr_state:
+            self.curr_state.is_active = False
+        if mode == self.COMBAT_MODE:
             self.curr_state = self.states_handle_list[0]
-            if isinstance(self.curr_state, states.CombatState):
-                self.states_handle_list.pop(0)
-        else:
-            if not isinstance(self.curr_state, states.CombatState):
-                self.curr_state.is_active = False
-            if isinstance(self.curr_state, states.CombatState) or isinstance(self.curr_state, states.TransitionState):
-                self.curr_state = self.states_handle_list[0]
-            else:
-                self.curr_state = self.states_handle_list[1]
+        elif mode == self.MOVE_MODE:
+            self.curr_state = self.states_handle_list[1]
+        elif mode == self.TRANSITION_MODE:
+            self.curr_state = self.states_handle_list[2]
         self.curr_state.is_active = True

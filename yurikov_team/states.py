@@ -229,9 +229,12 @@ class CombatState(DroneState):
         :return: None
         """
 
-        _is_victory = [mate.is_victory for mate in self.drone.teammates + [self.drone] if mate.is_alive]
-        _all_need_to_regroup = [mate.need_to_regroup for mate in self.drone.teammates + [self.drone] if mate.is_alive]
-        _all_need_to_retreat = [mate.need_to_retreat for mate in self.drone.teammates + [self.drone] if mate.is_alive]
+        _combat_mates = [mate for mate in self.drone.teammates + [self.drone] if
+                         mate.is_alive and isinstance(mate.curr_state, CombatState)]
+
+        _is_victory = [mate.is_victory for mate in _combat_mates]
+        _all_need_to_regroup = [mate.need_to_regroup for mate in _combat_mates]
+        _all_need_to_retreat = [mate.need_to_retreat for mate in _combat_mates]
 
         if any(_is_victory):
             self.drone.target = None
@@ -240,7 +243,7 @@ class CombatState(DroneState):
             self.is_active = False
 
         elif any(_all_need_to_retreat) and self.drone.distance_to(
-                self.drone.my_mothership) > self.drone.my_mothership.radius:
+                self.drone.my_mothership) > self.drone.my_mothership.radius + self.drone.radius:
             self.drone.need_to_retreat = False
             self.retreat()
 
@@ -262,10 +265,7 @@ class CombatState(DroneState):
             else:
                 _is_enemy = utils.check_for_enemy(self.drone, self.drone.target)
 
-                if self.shots == 10 and len(self.drone.manager.enemy_drones) > 3:
-                    self.regroup()
-
-                elif _is_enemy:
+                if _is_enemy:
                     self.at_targeting_an_enemy()
                 else:
                     self.drone.turn_to(self.drone.target)
@@ -303,7 +303,10 @@ class CombatState(DroneState):
                 self.drone.target = None
             manager.enemy_bases.sort(key=lambda b: b.payload, reverse=True)
         else:
-            self.drone.need_to_retreat = True
+            if len(self.drone.manager.enemy_drones) > 3:
+                self.drone.need_to_retreat = True
+            else:
+                self.drone.target = None
 
     def at_targeting_an_enemy(self) -> None:
         """
@@ -330,7 +333,8 @@ class CombatState(DroneState):
         _is_on_turret_point = self.drone.distance_to(self.drone.turret_point) < 1.0
         if _delta_l > 0.0:
             if _is_on_turret_point:
-                self.regroup()
+                # self.regroup()
+                self.retreat()
             else:
                 self.drone.combat_point = utils.get_next_point(self.drone.coord,
                                                                self.drone.direction,
@@ -338,7 +342,12 @@ class CombatState(DroneState):
                 self.drone.move_at(self.drone.combat_point)
 
         elif _teammate_on_firing_line != self.drone:
-            self.regroup()
+            if _is_on_turret_point:
+                self.retreat()
+            elif not self.drone.manager.enemy_drones:
+                self.regroup()
+            else:
+                self.drone.need_to_regroup = True
 
         elif self.drone.gun.can_shot:
             self.shots += 1
@@ -385,10 +394,11 @@ class CombatState(DroneState):
                 self.drone.move_at(self.drone.turret_point)
         else:
             self.drone.in_combat_move = True
-            if self.drone.manager.enemy_drones:
+            if self.drone.manager.enemy_drones and self.drone.first_transition_finished:
                 self.drone.need_to_sync = True
                 self.drone.at_sync_point = True
                 self.drone.move_at(self.drone.my_mothership)
             else:
+                self.drone.first_transition_finished = True
                 self.drone.combat_point = utils.get_combat_point(self.drone, self.drone.target)
                 self.drone.move_at(self.drone.combat_point)
