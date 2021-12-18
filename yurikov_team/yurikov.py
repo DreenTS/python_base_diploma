@@ -246,8 +246,11 @@ class YurikovDrone(Drone):
         :return: None
         """
 
-        if not self.first_transition_finished:
+        if not self.first_transition_finished \
+                and self.manager.enemy_drones \
+                and self.manager.enemy_bases:
             self.switch_state(mode=self.COMBAT_MODE)
+            self.first_transition_finished = True
             self.is_transition_finished = True
             self.target = None
         else:
