@@ -333,7 +333,6 @@ class CombatState(DroneState):
         _is_on_turret_point = self.drone.distance_to(self.drone.turret_point) < 1.0
         if _delta_l > 0.0:
             if _is_on_turret_point:
-                # self.regroup()
                 self.retreat()
             else:
                 self.drone.combat_point = utils.get_next_point(self.drone.coord,
