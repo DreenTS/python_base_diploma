@@ -70,7 +70,7 @@ class DroneState(ABC):
                 return self.drone.my_mothership
 
     @abstractmethod
-    def on_heartbeat(self) -> None:
+    def state_on_heartbeat(self) -> None:
         """
         Выполняется при каждом шаге игры.
 
@@ -86,7 +86,7 @@ class MoveState(DroneState):
 
     """
 
-    def on_heartbeat(self) -> None:
+    def state_on_heartbeat(self) -> None:
         """
         Выполняется при каждом шаге игры.
 
@@ -131,7 +131,7 @@ class TransitionState(DroneState):
 
     """
 
-    def on_heartbeat(self) -> None:
+    def state_on_heartbeat(self) -> None:
         """
         Выполняется при каждом шаге игры.
 
@@ -200,7 +200,7 @@ class CombatState(DroneState):
             self.drone.is_victory = True
             return
 
-    def on_heartbeat(self) -> None:
+    def state_on_heartbeat(self) -> None:
         """
         Выполняется при каждом шаге игры.
 

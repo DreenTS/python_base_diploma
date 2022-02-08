@@ -84,7 +84,7 @@ class YurikovDrone(Drone):
                 if isinstance(self.curr_state, states.CombatState):
                     self.curr_state.choice_of_combat_point()
 
-            self.curr_state.on_heartbeat()
+            self.curr_state.state_on_heartbeat()
 
     def sync_with_teammates(self) -> None:
         """
