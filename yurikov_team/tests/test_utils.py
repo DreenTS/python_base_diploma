@@ -1,5 +1,4 @@
 import unittest
-from copy import deepcopy
 from unittest.mock import Mock
 
 from robogame_engine.geometry import Point
@@ -123,17 +122,35 @@ class UtilsTest(unittest.TestCase):
         self.drone_mock.distance_to = self.drone_mock.coord.distance_to
 
         # Угол "линии огня" с вражеским юнитом
-        mock_enemy = Point(300, 200)
-        mock_enemy.coord = Point(300, 200)
-        mock_enemy.team = 'mock_enemy_team'
-        mock_enemy.radius = Drone.radius
-        result = utils.get_firing_angle(shooter=self.drone_mock, target=mock_enemy)
+        enemy_mock = Point(300, 200)
+        enemy_mock.coord = Point(300, 200)
+        enemy_mock.team = 'mock_enemy_team'
+        enemy_mock.radius = Drone.radius
+        result = utils.get_firing_angle(shooter=self.drone_mock, target=enemy_mock)
         self.assertEqual(result, 22.64555582103878)
 
         # Угол "линии огня" с союзным юнитом
-        mock_enemy.team = 'mock_team'
-        result = utils.get_firing_angle(shooter=self.drone_mock, target=mock_enemy)
+        enemy_mock.team = 'mock_team'
+        result = utils.get_firing_angle(shooter=self.drone_mock, target=enemy_mock)
         self.assertEqual(result, 22.631167949279153)
+
+    def test_check_for_enemy(self) -> None:
+        self.drone_mock.coord = Point(200, 100)
+        self.drone_mock.distance_to = self.drone_mock.coord.distance_to
+        enemy_mock = Point(300, 200)
+        enemy_mock.coord = Point(300, 200)
+        enemy_mock.team = 'mock_enemy_team'
+        enemy_mock.radius = Drone.radius
+
+        # Нацелен на врага
+        self.drone_mock.direction = 60.0
+        result = utils.check_for_enemy(src=self.drone_mock, enemy=enemy_mock)
+        self.assertEqual(result, True)
+
+        # Не нацелен на врага
+        self.drone_mock.direction = 90.0
+        result = utils.check_for_enemy(src=self.drone_mock, enemy=enemy_mock)
+        self.assertEqual(result, False)
 
 
 if __name__ == '__main__':
