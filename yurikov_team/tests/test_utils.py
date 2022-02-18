@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 from unittest.mock import Mock
 
 from robogame_engine.geometry import Point
@@ -23,8 +24,8 @@ class UtilsTest(unittest.TestCase):
         self.drone_mock.radius = Drone.radius
         self.drone_mock.team = 'mock_team'
         self.drone_mock.my_mothership = Mock()
-        self.mothership = self.drone_mock.my_mothership
-        self.mothership.radius = MotherShip.radius
+        self.mothership_mock = self.drone_mock.my_mothership
+        self.mothership_mock.radius = MotherShip.radius
         self.drone_mock.gun = Mock()
         self.drone_mock.gun.shot_distance = PlasmaProjectile.max_distance
         self.drone_mock.gun.projectile.radius = PlasmaProjectile.radius
@@ -98,8 +99,8 @@ class UtilsTest(unittest.TestCase):
         self.drone_mock.scene.teams = {'mock_team': [0] * 5}
         self.drone_mock.id = 1
         self.drone_mock.coord = Point(200, 250)
-        self.mothership.coord = Point(90, 90)
-        self.mothership.distance_to = self.mothership.coord.distance_to
+        self.mothership_mock.coord = Point(90, 90)
+        self.mothership_mock.distance_to = self.mothership_mock.coord.distance_to
         target_clone = Point(365, 340)
         target_clone.coord = Point(365, 340)
         result = utils.get_combat_point(src=self.drone_mock, target=target_clone)
@@ -109,13 +110,30 @@ class UtilsTest(unittest.TestCase):
         # При выходе за границу игрового поля
         self.drone_mock.id = 2
         self.drone_mock.coord = Point(90, 90)
-        self.mothership.coord = Point(1110, 90)
-        self.mothership.distance_to = self.mothership.coord.distance_to
+        self.mothership_mock.coord = Point(1110, 90)
+        self.mothership_mock.distance_to = self.mothership_mock.coord.distance_to
         target_clone = Point(100, 100)
         target_clone.coord = Point(100, 100)
         result = utils.get_combat_point(src=self.drone_mock, target=target_clone)
         new_point = (round(result.x, 1), round(result.y, 1))
         self.assertEqual(new_point, (46, 46))
+
+    def test_get_firing_angle(self) -> None:
+        self.drone_mock.coord = Point(200, 100)
+        self.drone_mock.distance_to = self.drone_mock.coord.distance_to
+
+        # Угол "линии огня" с вражеским юнитом
+        mock_enemy = Point(300, 200)
+        mock_enemy.coord = Point(300, 200)
+        mock_enemy.team = 'mock_enemy_team'
+        mock_enemy.radius = Drone.radius
+        result = utils.get_firing_angle(shooter=self.drone_mock, target=mock_enemy)
+        self.assertEqual(result, 22.64555582103878)
+
+        # Угол "линии огня" с союзным юнитом
+        mock_enemy.team = 'mock_team'
+        result = utils.get_firing_angle(shooter=self.drone_mock, target=mock_enemy)
+        self.assertEqual(result, 22.631167949279153)
 
 
 if __name__ == '__main__':
