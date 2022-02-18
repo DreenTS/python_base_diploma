@@ -94,6 +94,29 @@ class UtilsTest(unittest.TestCase):
         result = utils.normalize_point(src=self.drone_mock, point=prev_point, radius=self.drone_mock.radius)
         self.assertEqual(result.distance_to(new_point), 0)
 
+    def test_get_combat_point(self) -> None:
+        self.drone_mock.scene.teams = {'mock_team': [0] * 5}
+        self.drone_mock.id = 1
+        self.drone_mock.coord = Point(200, 250)
+        self.mothership.coord = Point(90, 90)
+        self.mothership.distance_to = self.mothership.coord.distance_to
+        target_clone = Point(365, 340)
+        target_clone.coord = Point(365, 340)
+        result = utils.get_combat_point(src=self.drone_mock, target=target_clone)
+        new_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(new_point, (102.7, 292.1))
+
+        # При выходе за границу игрового поля
+        self.drone_mock.id = 2
+        self.drone_mock.coord = Point(90, 90)
+        self.mothership.coord = Point(1110, 90)
+        self.mothership.distance_to = self.mothership.coord.distance_to
+        target_clone = Point(100, 100)
+        target_clone.coord = Point(100, 100)
+        result = utils.get_combat_point(src=self.drone_mock, target=target_clone)
+        new_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(new_point, (46, 46))
+
 
 if __name__ == '__main__':
     unittest.main()
