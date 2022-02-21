@@ -152,6 +152,40 @@ class UtilsTest(unittest.TestCase):
         result = utils.check_for_enemy(src=self.drone_mock, enemy=enemy_mock)
         self.assertEqual(result, False)
 
+    def test_check_for_teammates(self) -> None:
+        self.drone_mock.coord = Point(500, 500)
+        self.drone_mock.distance_to = self.drone_mock.coord.distance_to
+        self.drone_mock.direction = 0.0
+        self.drone_mock.my_mothership = Point(90, 90)
+        self.drone_mock.my_mothership.coord = Point(90, 90)
+        self.drone_mock.my_mothership.radius = self.drone_mock.radius
+        self.drone_mock.my_mothership.is_alive = True
+        self.drone_mock.my_mothership.team = 'mock_team'
+        self.drone_mock.teammates = []
+        for i in range(4):
+            temp_mate = Point(100 * (i + 1), 100 * (i + 1))
+            temp_mate.coord = Point(100 * (i + 1), 100 * (i + 1))
+            temp_mate.radius = self.drone_mock.radius
+            temp_mate.is_alive = True
+            temp_mate.distance_to = temp_mate.coord.distance_to
+            temp_mate.team = 'mock_team'
+            self.drone_mock.teammates.append(temp_mate)
+
+        # Ни один из союзников не находится на линии огня
+        result = utils.check_for_teammates(src=self.drone_mock)
+        self.assertEqual(result, self.drone_mock)
+
+        # Союзная база находится на линии огня
+        self.drone_mock.my_mothership.coord = Point(600, 500)
+        result = utils.check_for_teammates(src=self.drone_mock)
+        self.assertEqual(result, self.drone_mock.my_mothership)
+
+        # Один из союзных дронов находится на линии огня
+        self.drone_mock.my_mothership.coord = Point(90, 90)
+        self.drone_mock.teammates[0].coord = Point(600, 500)
+        result = utils.check_for_teammates(src=self.drone_mock)
+        self.assertEqual(result, self.drone_mock.teammates[0])
+
 
 if __name__ == '__main__':
     unittest.main()
