@@ -186,6 +186,32 @@ class UtilsTest(unittest.TestCase):
         result = utils.check_for_teammates(src=self.drone_mock)
         self.assertEqual(result, self.drone_mock.teammates[0])
 
+    def test_get_next_point(self) -> None:
+        start_point = Point(100, 100)
+        angle = 0.0
+        length = 100
+        result = utils.get_next_point(point=start_point, angle=angle, length=length)
+        end_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(end_point, (200.0, 100.0))
+        angle = 45.0
+        length = 100
+        result = utils.get_next_point(point=start_point, angle=angle, length=length)
+        end_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(end_point, (170.7, 170.7))
+        angle = 90.0
+        length = 100
+        result = utils.get_next_point(point=start_point, angle=angle, length=length)
+        end_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(end_point, (100.0, 200.0))
+        angle = -90.0
+        length = 100
+        result = utils.get_next_point(point=start_point, angle=angle, length=length)
+        end_point = (round(result.x, 1), round(result.y, 1))
+        self.assertEqual(end_point, (100.0, 0.0))
+
+    def test_is_base_in_danger(self) -> None:
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()
