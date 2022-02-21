@@ -24,6 +24,7 @@ class UtilsTest(unittest.TestCase):
         self.drone_mock.team = 'mock_team'
         self.drone_mock.my_mothership = Point(90, 90)
         self.drone_mock.my_mothership.coord = Point(90, 90)
+        self.drone_mock.my_mothership.distance_to = self.drone_mock.my_mothership.coord.distance_to
         self.drone_mock.my_mothership.radius = MotherShip.radius
         self.drone_mock.my_mothership.is_alive = True
         self.drone_mock.my_mothership.team = 'mock_team'
@@ -100,7 +101,6 @@ class UtilsTest(unittest.TestCase):
         self.drone_mock.scene.teams = {'mock_team': [0] * 5}
         self.drone_mock.id = 1
         self.drone_mock.coord = Point(200, 250)
-        self.drone_mock.my_mothership.distance_to = self.drone_mock.my_mothership.coord.distance_to
         target_clone = Point(365, 340)
         target_clone.coord = Point(365, 340)
         result = utils.get_combat_point(src=self.drone_mock, target=target_clone)
@@ -206,7 +206,17 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(end_point, (100.0, 0.0))
 
     def test_is_base_in_danger(self) -> None:
-        pass
+        turret_point = Point(232.0, 134.0)
+
+        # База в опасности
+        target = Point(300, 300)
+        result = utils.is_base_in_danger(src=self.drone_mock, turret_point=turret_point, target=target)
+        self.assertEqual(result, True)
+
+        # База вне опасности
+        target = Point(1000, 1000)
+        result = utils.is_base_in_danger(src=self.drone_mock, turret_point=turret_point, target=target)
+        self.assertEqual(result, False)
 
 
 if __name__ == '__main__':
